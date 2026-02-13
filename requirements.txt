@@ -1,0 +1,17 @@
+requests
+bs4
+colorama
+cloudscraper
+python-socketio
+python-websocket
+faker
+pyfiglet
+portalocker
+httpx[http2]
+python-socketio[client]
+tqdm
+psutil
+pycryptodome
+cryptography
+cookiejar
+user_agent
