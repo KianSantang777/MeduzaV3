@@ -21,5 +21,5 @@ and response-based classification (LIVE / DEAD / RETRY).
 - git clone https://github.com/KianSantang777/MeduzaV3.git
 - cd MeduzaV3
 - pip install -r requirements.txt
-- python meduzav3.py
+- python apis.py
 ```
