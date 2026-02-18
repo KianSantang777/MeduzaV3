@@ -8,6 +8,7 @@ faker
 pyfiglet
 portalocker
 httpx[http2]
+pyfiglet
 tqdm
 psutil
 pycryptodome
@@ -15,3 +16,4 @@ cryptography
 pyarmor
 cookiejar
 user_agent
+
