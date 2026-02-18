@@ -11,10 +11,12 @@
 
 <ul>
   <li><strong>Version:</strong> 3.0.1</li>
+  <li><strong>Build:</strong> 3.0.1</li>
+  <li><strong>Build (Python):</strong> <a href="https://www.python.org/downloads/release/python-3127/" target="_blank">Python 3.12.7</a></li>
   <li><strong>Status:</strong> Stable Release</li>
   <li><strong>Platform:</strong> Windows</li>
   <li><strong>File Type:</strong> .exe (Executable)</li>
-  <li>
+</ul>
     <strong>Changelog:</strong>
     <a href="https://github.com/KianSantang777/MeduzaV3/commits/Version-3.0.1">
       View Full Commit History
@@ -41,13 +43,14 @@
 <h2>Installation (Termux, Linux, Ubuntu)</h2>
 
 <pre><code>
-termux-setup-storage
-apt update && apt upgrade -y
-apt install git python python2 nano
-git clone https://github.com/KianSantang777/MeduzaV3.git
-cd MeduzaV3
-pip install -r requirements.txt
-python apis.py
+$ termux-setup-storage
+$ apt update && apt upgrade -y
+$ apt install git python python2 nano
+$ git clone https://github.com/KianSantang777/MeduzaV3.git
+$ cd MeduzaV3
+$ pip install -r requirements.txt
+$ pip install -r requirements.txt --upgrade
+$ python meduzaPro.py
 </code></pre>
 
 <hr>
