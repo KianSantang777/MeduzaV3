@@ -2,7 +2,7 @@
 <h3 align="center">Version 3.0.1</h3>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/KianSantang777/MeduzaV3/main/meduza.jpg" alt="Meduza V3" width="700">
+  <img src="https://raw.githubusercontent.com/KianSantang777/MeduzaV3/refs/heads/main/v11.png" alt="Meduza V3" width="700">
 </p>
 
 <hr>
@@ -27,7 +27,7 @@
 <h2 align="center">Download for Windows</h2>
 
 <p align="center">
-  <a href="https://github.com/KianSantang777/MeduzaV3/releases/download/Version-3.0.1/meduzav3.exe">
+  <a href="https://github.com/KianSantang777/MeduzaV3/releases/download/Version-3.0.2/meduzav3.exe">
     <img src="https://img.shields.io/badge/Download-Windows%20(.exe)-black?style=for-the-badge" alt="Download Meduza V3 for Windows">
   </a>
 </p>
