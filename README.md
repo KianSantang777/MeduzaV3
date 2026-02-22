@@ -44,13 +44,14 @@
 
 <pre><code>
 $ termux-setup-storage
-$ apt update && apt upgrade -y
-$ apt install git python python2 nano
+$ pkg update && pkg upgrade -y
+$ pkg install git python python2 nano bash
 $ git clone https://github.com/KianSantang777/MeduzaV3.git
 $ cd MeduzaV3
 $ pip install -r requirements.txt
 $ pip install -r requirements.txt --upgrade
-$ python main.py
+$ chmod +x *
+$ ./go.sh && python main.py
 </code></pre>
 
 <hr>
