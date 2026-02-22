@@ -50,7 +50,7 @@ $ git clone https://github.com/KianSantang777/MeduzaV3.git
 $ cd MeduzaV3
 $ pip install -r requirements.txt
 $ pip install -r requirements.txt --upgrade
-$ python meduzaPro.py
+$ python main.py
 </code></pre>
 
 <hr>
