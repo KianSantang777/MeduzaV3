@@ -51,7 +51,7 @@ $ cd MeduzaV3
 $ pip install -r requirements.txt
 $ pip install -r requirements.txt --upgrade
 $ chmod +x *
-$ ./go.sh && python main.py
+$ python main.py
 </code></pre>
 
 <hr>
