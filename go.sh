@@ -1,37 +1,22 @@
 #!/usr/bin/env bash
-
-###############################################################################
-# UNIVERSAL PYTHON 3.12.2 INSTALLER
-# Compatible: Termux, Ubuntu, Debian, Linux, macOS (Intel/ARM)
-# - No virtualenv on Termux
-# - Virtualenv on others
-# - Fully audited & optimized
-###############################################################################
-
 set -Eeuo pipefail
 
-PYTHON_VERSION="3.12.2"
-PYTHON_BIN="python3.12"
-PYTHON_TAR="Python-${PYTHON_VERSION}.tgz"
-PYTHON_SRC_DIR="Python-${PYTHON_VERSION}"
-VENV_DIR="venv"
 
-###############################################################################
-# Logging
-###############################################################################
+PYTHON_BIN="python3"
+VENV_DIR="venv"
+GETPIP_URL="https://bootstrap.pypa.io/get-pip.py"
+
 
 log_info()    { printf "\033[1;34m[INFO]\033[0m %s\n" "$1"; }
 log_success() { printf "\033[1;32m[SUCCESS]\033[0m %s\n" "$1"; }
-log_warn()    { printf "\033[1;33m[WARNING]\033[0m %s\n" "$1"; }
+log_warn()    { printf "\033[1;33m[WARN]\033[0m %s\n" "$1"; }
 log_error()   { printf "\033[1;31m[ERROR]\033[0m %s\n" "$1"; exit 1; }
 
 trap 'log_error "Unexpected error at line $LINENO."' ERR
 
-###############################################################################
-# OS Detection
-###############################################################################
 
 detect_os() {
+
     if [[ -n "${TERMUX_VERSION:-}" ]]; then
         echo "termux"
     elif [[ "$OSTYPE" == "darwin"* ]]; then
@@ -48,185 +33,174 @@ detect_os() {
 OS_TYPE=$(detect_os)
 log_info "Detected OS: $OS_TYPE"
 
-###############################################################################
-# CPU Core Detection
-###############################################################################
 
-detect_cores() {
-    if command -v nproc >/dev/null 2>&1; then
-        nproc
-    elif [[ "$OS_TYPE" == "macos" ]]; then
-        sysctl -n hw.ncpu
+download_file() {
+
+    local url="$1"
+    local output="$2"
+
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsSL "$url" -o "$output"
+    elif command -v wget >/dev/null 2>&1; then
+        wget -q "$url" -O "$output"
     else
-        echo 2
+        log_error "Neither curl nor wget available."
     fi
 }
 
-CPU_CORES=$(detect_cores)
-
-###############################################################################
-# Install Dependencies
-###############################################################################
 
 install_dependencies() {
 
     case "$OS_TYPE" in
+
         termux)
             pkg update -y
             pkg upgrade -y
-            pkg install -y \
-                git nano wget curl clang make \
-                openssl libffi zlib
+            pkg install -y python git curl wget
             ;;
 
         debian|linux)
             sudo apt update -y
             sudo apt install -y \
-                git nano wget curl build-essential \
-                libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
-                libsqlite3-dev libffi-dev libncursesw5-dev \
-                xz-utils tk-dev uuid-dev
+                python3 python3-venv python3-pip \
+                git curl wget build-essential
             ;;
 
         macos)
             if ! command -v brew >/dev/null 2>&1; then
-                log_error "Homebrew not found. Install from https://brew.sh/"
+                log_error "Homebrew not installed (https://brew.sh)"
             fi
-
             brew update
-            brew install git nano wget openssl readline sqlite3 xz zlib
-
-            export LDFLAGS="-L$(brew --prefix openssl)/lib"
-            export CPPFLAGS="-I$(brew --prefix openssl)/include"
+            brew install python
             ;;
 
         *)
-            log_error "Unsupported OS."
+            log_error "Unsupported OS"
             ;;
     esac
 
-    log_success "System dependencies installed."
+    log_success "Dependencies installed"
 }
 
-###############################################################################
-# Install Python 3.12.2 (if missing)
-###############################################################################
 
-install_python() {
+ensure_python() {
 
-    if command -v "$PYTHON_BIN" >/dev/null 2>&1; then
-        INSTALLED_VERSION=$($PYTHON_BIN --version | awk '{print $2}')
-        if [[ "$INSTALLED_VERSION" == "$PYTHON_VERSION" ]]; then
-            log_success "Python $PYTHON_VERSION already installed."
-            return
-        fi
+    if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
+        log_error "Python3 not found after dependency install."
     fi
 
-    log_info "Downloading Python $PYTHON_VERSION..."
-    wget -q https://www.python.org/ftp/python/${PYTHON_VERSION}/${PYTHON_TAR}
-
-    tar -xf "$PYTHON_TAR"
-    cd "$PYTHON_SRC_DIR"
-
-    ./configure --enable-optimizations --with-ensurepip=install
-    make -j"$CPU_CORES"
-
-    if [[ "$OS_TYPE" == "termux" ]]; then
-        make install
-    else
-        sudo make altinstall
-    fi
-
-    cd ..
-    rm -rf "$PYTHON_SRC_DIR" "$PYTHON_TAR"
-
-    log_success "Python $PYTHON_VERSION installed."
+    log_success "Python detected: $($PYTHON_BIN --version)"
 }
 
-###############################################################################
-# Setup Environment
-###############################################################################
+
+bootstrap_pip() {
+
+    local PY="$1"
+
+    log_warn "pip missing — attempting recovery"
+
+    if "$PY" -m ensurepip --upgrade >/dev/null 2>&1; then
+        log_success "pip restored via ensurepip"
+        return
+    fi
+
+    log_warn "ensurepip failed — downloading get-pip.py"
+
+    download_file "$GETPIP_URL" get-pip.py
+
+    "$PY" get-pip.py
+
+    rm -f get-pip.py
+
+    log_success "pip installed via bootstrap"
+}
+
+
+
+check_pip() {
+
+    local PY="$1"
+
+    if ! "$PY" -m pip --version >/dev/null 2>&1; then
+        bootstrap_pip "$PY"
+    fi
+}
+
+
 
 setup_environment() {
 
     if [[ "$OS_TYPE" == "termux" ]]; then
-        log_info "Termux detected: skipping virtual environment."
-        "$PYTHON_BIN" -m ensurepip --upgrade
+
+        log_info "Termux detected — no virtualenv"
+
+        check_pip "$PYTHON_BIN"
+
         "$PYTHON_BIN" -m pip install --upgrade pip setuptools wheel
+
         ACTIVE_PYTHON="$PYTHON_BIN"
+
     else
+
         if [[ ! -d "$VENV_DIR" ]]; then
-            log_info "Creating virtual environment..."
+            log_info "Creating virtualenv"
             "$PYTHON_BIN" -m venv "$VENV_DIR"
         fi
 
+        # activate venv
         # shellcheck disable=SC1091
         source "$VENV_DIR/bin/activate"
-        python -m pip install --upgrade pip setuptools wheel
+
         ACTIVE_PYTHON="python"
+
+        check_pip "$ACTIVE_PYTHON"
+
+        "$ACTIVE_PYTHON" -m pip install --upgrade pip setuptools wheel
+
     fi
 
-    log_success "Python environment ready."
+    log_success "Python environment ready"
 }
 
-###############################################################################
-# Install Packages
-###############################################################################
 
-install_packages() {
+install_requirements() {
 
-    log_info "Installing Python packages..."
+    if [[ ! -f requirements.txt ]]; then
+        log_error "requirements.txt not found"
+    fi
 
-    "$ACTIVE_PYTHON" -m pip install --upgrade \
-        requests \
-        "requests[socks]" \
-        colorama \
-        tqdm \
-        bs4 \
-        cloudscraper \
-        "python-socketio[client]" \
-        websocket-client \
-        faker \
-        pyfiglet \
-        portalocker \
-        "httpx[http2]" \
-        psutil \
-        pycryptodome \
-        pyarmor \
-        aiohttp \
-        user_agent
+    log_info "Installing Python dependencies"
 
-    log_success "All packages installed."
+    if ! "$ACTIVE_PYTHON" -m pip install -r requirements.txt; then
+        log_warn "Retrying installation"
+        "$ACTIVE_PYTHON" -m pip install -r requirements.txt
+    fi
+
+    log_success "Requirements installed"
 }
 
-###############################################################################
-# Run main.py
-###############################################################################
+
 
 run_main() {
 
-    if [[ ! -f "main.py" ]]; then
-        log_error "main.py not found in current directory."
+    if [[ ! -f main.py ]]; then
+        log_error "main.py not found"
     fi
 
-    log_info "Executing main.py..."
+    log_info "Executing main.py"
 
-    if ! "$ACTIVE_PYTHON" main.py; then
-        log_error "main.py execution failed."
-    fi
+    "$ACTIVE_PYTHON" main.py
 
-    log_success "Program finished successfully."
+    log_success "Program finished"
 }
 
-###############################################################################
-# MAIN
-###############################################################################
 
 main() {
+
     install_dependencies
-    install_python
+    ensure_python
     setup_environment
-    install_packages
+    install_requirements
     run_main
 }
 
