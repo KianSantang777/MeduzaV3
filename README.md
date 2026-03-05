@@ -1,8 +1,8 @@
-<h1 align="center">Meduza V3</h1>
-<h3 align="center">Version 3.0.1</h3>
+<h1 align="center">MeduzaPro</h1>
+<h3 align="center">Version 3.0.3</h3>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/KianSantang777/MeduzaV3/refs/heads/main/v11.png" alt="Meduza V3" width="700">
+  <img src="https://raw.githubusercontent.com/KianSantang777/MeduzaV3/refs/heads/main/meduza1.jpg" alt="MeduzaPro" width="700">
 </p>
 
 <hr>
@@ -10,8 +10,8 @@
 <h2>Release Information</h2>
 
 <ul>
-  <li><strong>Version:</strong> 3.0.1</li>
-  <li><strong>Build:</strong> 3.0.1</li>
+  <li><strong>Version:</strong> 3.0.3</li>
+  <li><strong>Build:</strong> 3.0.3</li>
   <li><strong>Build (Python):</strong> <a href="https://www.python.org/downloads/release/python-3122/" target="_blank">Python 3.12.2</a></li>
   <li><strong>Status:</strong> Stable Release</li>
   <li><strong>Platform:</strong> Windows</li>
@@ -29,7 +29,7 @@
 <h2 align="center">Download for Windows</h2>
 
 <p align="center">
-  <a href="https://github.com/KianSantang777/MeduzaV3/releases/download/Version-3.0.2/meduzav3.exe">
+  <a href="https://github.com/KianSantang777/MeduzaV3/releases/download/Version-3.0.3/meduzav3.exe">
     <img src="https://img.shields.io/badge/Download-Windows%20(.exe)-black?style=for-the-badge" alt="Download Meduza V3 for Windows">
   </a>
 </p>
