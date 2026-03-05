@@ -2,7 +2,8 @@
 <h3 align="center">Version 3.0.3</h3>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/KianSantang777/MeduzaV3/refs/heads/main/meduza1.jpg" alt="MeduzaPro" width="700">
+  <img src="https://raw.githubusercontent.com/KianSantang777/MeduzaV3/refs/heads/main/meduza1.jpg" width="48%">
+  <img src="https://raw.githubusercontent.com/KianSantang777/MeduzaV3/refs/heads/main/meduza2.jpg" width="48%">
 </p>
 
 <hr>
@@ -29,8 +30,8 @@
 <h2 align="center">Download for Windows</h2>
 
 <p align="center">
-  <a href="https://github.com/KianSantang777/MeduzaV3/releases/download/Version-3.0.3/meduzav3.exe">
-    <img src="https://img.shields.io/badge/Download-Windows%20(.exe)-black?style=for-the-badge" alt="Download Meduza V3 for Windows">
+  <a href="https://github.com/KianSantang777/MeduzaV3/releases/download/Version-3.0.3/MeduzaPro.exe">
+    <img src="https://img.shields.io/badge/Download-Windows%20(.exe)-black?style=for-the-badge" alt="Download MeduzaPro for Windows">
   </a>
 </p>
 
@@ -40,18 +41,28 @@
 
 <hr>
 
-<h2>Installation (Termux, Linux, Ubuntu)</h2>
+<h3>Termux</h3>
 
 <pre><code>
 $ termux-setup-storage
-$ pkg update && pkg upgrade -y
-$ pkg install git python python2 nano bash
+$ pkg update -y && pkg upgrade -y
+$ pkg install git python -y
 $ git clone https://github.com/KianSantang777/MeduzaV3.git
 $ cd MeduzaV3
 $ pip install -r requirements.txt
-$ pip install -r requirements.txt --upgrade
-$ chmod +x *
 $ python main.py
+</code></pre>
+
+
+<h3>Linux (Ubuntu / Debian / etc)</h3>
+
+<pre><code>
+$ sudo apt update && sudo apt upgrade -y
+$ sudo apt install git python3 python3-pip -y
+$ git clone https://github.com/KianSantang777/MeduzaV3.git
+$ cd MeduzaV3
+$ pip3 install -r requirements.txt
+$ python3 main.py
 </code></pre>
 
 <hr>
