@@ -25,22 +25,6 @@
   </li>
 </ul>
 
-<hr>
-
-<h2 align="center">Download for Windows</h2>
-
-<p align="center">
-  <a href="https://github.com/KianSantang777/MeduzaV3/releases/download/Version-3.0.3/MeduzaPro.exe">
-    <img src="https://img.shields.io/badge/Download-Windows%20(.exe)-black?style=for-the-badge" alt="Download MeduzaPro for Windows">
-  </a>
-</p>
-
-<p align="center">
-  Direct executable file for Windows systems.
-</p>
-
-<hr>
-
 <h3>Termux</h3>
 
 <pre><code>
