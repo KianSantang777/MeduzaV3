@@ -1,9 +1,8 @@
 <h1 align="center">MeduzaPro</h1>
-<h3 align="center">Version 3.0.3</h3>
+<h3 align="center">Version 23.0.3</h3>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/KianSantang777/MeduzaV3/refs/heads/main/meduza1.jpg" width="48%">
-  <img src="https://raw.githubusercontent.com/KianSantang777/MeduzaV3/refs/heads/main/meduza2.jpg" width="48%">
+  <img src="https://raw.githubusercontent.com/KianSantang777/MeduzaV3/refs/heads/main/meduza.jpg" width="48%">
 </p>
 
 <hr>
@@ -11,12 +10,12 @@
 <h2>Release Information</h2>
 
 <ul>
-  <li><strong>Version:</strong> 3.0.3</li>
+  <li><strong>Version:</strong> 23.0.3</li>
   <li><strong>Build:</strong> 3.0.3</li>
   <li><strong>Build (Python):</strong> <a href="https://www.python.org/downloads/release/python-3122/" target="_blank">Python 3.12.2</a></li>
   <li><strong>Status:</strong> Stable Release</li>
   <li><strong>Platform:</strong> Windows</li>
-  <li><strong>File Type:</strong> .exe (Executable)</li>
+  <li><strong>File Type:</strong> .py (python)</li>
 </ul>
     <strong>Changelog:</strong>
     <a href="https://github.com/KianSantang777/MeduzaV3/commits/Version-3.0.1">
@@ -78,7 +77,7 @@ It follows real browser logic, session handling, and response-based classificati
 <ul>
   <li>
     Telegram Channel 1:
-    <a href="https://t.me/+ivrmD-sfFGkwMmU1">https://t.me/+ivrmD-sfFGkwMmU1</a>
+    <a href="https://t.me/+nIzDirDtVBcyMGJl">https://t.me/+ivrmD-sfFGkwMmU1</a>
   </li>
   <li>
     Telegram Channel 2:
@@ -102,5 +101,5 @@ It follows real browser logic, session handling, and response-based classificati
 <hr>
 
 <p align="center">
-  Meduza V3 — Professional, Stable, Reliable
+  Meduza V3
 </p>
