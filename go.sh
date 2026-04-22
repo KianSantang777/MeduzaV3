@@ -29,14 +29,59 @@ detect_os() {
 OS_TYPE=$(detect_os)
 log_info "Detected OS: $OS_TYPE"
 
+# =========================
+# AUTO UPDATE GIT
+# =========================
+auto_update_repo() {
+    if ! command -v git >/dev/null 2>&1; then
+        log_warn "git not installed, skipping auto-update"
+        return
+    fi
+
+    if [[ ! -d ".git" ]]; then
+        log_warn "Not a git repository, skipping auto-update"
+        return
+    fi
+
+    log_info "Checking for updates from remote repository..."
+
+    git fetch --quiet || {
+        log_warn "git fetch failed, skipping update"
+        return
+    }
+
+    LOCAL_HASH=$(git rev-parse HEAD)
+    REMOTE_HASH=$(git rev-parse @{u} 2>/dev/null || echo "")
+
+    if [[ -z "$REMOTE_HASH" ]]; then
+        log_warn "No upstream branch set, skipping update"
+        return
+    fi
+
+    if [[ "$LOCAL_HASH" != "$REMOTE_HASH" ]]; then
+        log_warn "Update detected, pulling latest changes..."
+
+        if git pull --rebase --autostash; then
+            log_success "Repository updated successfully"
+
+            log_info "Restarting script to apply updates..."
+            exec "$0" "$@"
+        else
+            log_error "git pull failed"
+        fi
+    else
+        log_success "Already up-to-date"
+    fi
+}
+
 download_file() {
     local url="$1"
     local output="$2"
 
     if command -v curl >/dev/null 2>&1; then
-        curl -fsSL "$url" -o "$output"
+        curl -fL --retry 3 --retry-delay 2 -o "$output" "$url" || return 1
     elif command -v wget >/dev/null 2>&1; then
-        wget -q "$url" -O "$output"
+        wget -q --tries=3 -O "$output" "$url" || return 1
     else
         log_error "Neither curl nor wget available."
     fi
@@ -45,9 +90,9 @@ download_file() {
 install_dependencies() {
     case "$OS_TYPE" in
         termux)
-            pkg update -y
-            pkg upgrade -y
-            pkg install -y python git curl wget
+            pkg update -y || log_warn "pkg update failed"
+            pkg upgrade -y || log_warn "pkg upgrade failed"
+            pkg install -y python git curl wget || log_error "Failed installing dependencies"
             ;;
         debian|linux)
             sudo apt update -y
@@ -57,7 +102,7 @@ install_dependencies() {
             ;;
         macos)
             if ! command -v brew >/dev/null 2>&1; then
-                log_error "Homebrew not installed (https://brew.sh)"
+                log_error "Homebrew not installed"
             fi
             brew update
             brew install python
@@ -72,7 +117,7 @@ install_dependencies() {
 
 ensure_python() {
     if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
-        log_error "Python3 not found after dependency install."
+        log_error "Python3 not found"
     fi
 
     log_success "Python detected: $($PYTHON_BIN --version)"
@@ -81,6 +126,11 @@ ensure_python() {
 bootstrap_pip() {
     local PY="$1"
 
+    if [[ "$OS_TYPE" == "termux" ]]; then
+        log_warn "Skipping pip bootstrap on Termux"
+        return 0
+    fi
+
     log_warn "pip missing — attempting recovery"
 
     if "$PY" -m ensurepip --upgrade >/dev/null 2>&1; then
@@ -88,10 +138,8 @@ bootstrap_pip() {
         return
     fi
 
-    log_warn "ensurepip failed — downloading get-pip.py"
-
-    download_file "$GETPIP_URL" get-pip.py
-    "$PY" get-pip.py
+    download_file "$GETPIP_URL" get-pip.py || log_error "Download failed"
+    "$PY" get-pip.py || log_error "pip install failed"
     rm -f get-pip.py
 
     log_success "pip installed via bootstrap"
@@ -101,16 +149,22 @@ check_pip() {
     local PY="$1"
 
     if ! "$PY" -m pip --version >/dev/null 2>&1; then
-        bootstrap_pip "$PY"
+        if [[ "$OS_TYPE" == "termux" ]]; then
+            log_error "pip missing in Termux. Run: pkg install python"
+        else
+            bootstrap_pip "$PY"
+        fi
     fi
 }
 
 setup_environment() {
     if [[ "$OS_TYPE" == "termux" ]]; then
-        log_info "Termux detected — no virtualenv"
+        log_info "Termux detected — skipping virtualenv"
 
         check_pip "$PYTHON_BIN"
-        "$PYTHON_BIN" -m pip install --upgrade pip setuptools wheel
+
+        "$PYTHON_BIN" -m pip install --upgrade setuptools wheel || \
+            log_warn "Setuptools upgrade failed"
 
         ACTIVE_PYTHON="$PYTHON_BIN"
     else
@@ -132,45 +186,48 @@ setup_environment() {
 }
 
 install_requirements() {
-    if [[ ! -f requirements.txt ]]; then
-        log_error "requirements.txt not found"
-    fi
+    [[ -f requirements.txt ]] || log_error "requirements.txt not found"
 
-    log_info "Installing Python dependencies"
+    log_info "Installing dependencies"
 
-    if ! "$ACTIVE_PYTHON" -m pip install -r requirements.txt; then
-        log_warn "Retrying installation"
-        "$ACTIVE_PYTHON" -m pip install -r requirements.txt
+    if ! "$ACTIVE_PYTHON" -m pip install \
+        --no-cache-dir \
+        --prefer-binary \
+        -r requirements.txt; then
+
+        log_warn "Retrying with fallback..."
+
+        "$ACTIVE_PYTHON" -m pip install \
+            --no-cache-dir \
+            --no-build-isolation \
+            -r requirements.txt || \
+            log_error "Install failed"
     fi
 
     log_success "Requirements installed"
 }
 
 install_extra_packages() {
-    log_info "Installing extra packages (pycryptodome)"
+    log_info "Installing pycryptodome"
 
-    # cleanup konflik lama
     "$ACTIVE_PYTHON" -m pip uninstall -y crypto pycrypto >/dev/null 2>&1 || true
 
-    if ! "$ACTIVE_PYTHON" -m pip install pycryptodome; then
-        log_warn "Retry installing pycryptodome"
-        "$ACTIVE_PYTHON" -m pip install pycryptodome
-    fi
+    "$ACTIVE_PYTHON" -m pip install --no-cache-dir pycryptodome || \
+        log_error "pycryptodome failed"
 
     log_success "pycryptodome installed"
 }
 
 run_main() {
-    if [[ ! -f main.py ]]; then
-        log_error "main.py not found"
-    fi
+    [[ -f main.py ]] || log_error "main.py not found"
 
-    log_info "Executing main.py"
+    log_info "Running main.py"
     "$ACTIVE_PYTHON" main.py
-    log_success "Program finished"
+    log_success "Done"
 }
 
 main() {
+    auto_update_repo "$@"
     install_dependencies
     ensure_python
     setup_environment
@@ -179,4 +236,4 @@ main() {
     run_main
 }
 
-main
+main "$@"
