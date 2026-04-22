@@ -11,10 +11,9 @@
 
 <ul>
   <li><strong>Version:</strong> 23.0.3</li>
-  <li><strong>Build:</strong> 3.0.3</li>
   <li><strong>Build (Python):</strong> <a href="https://www.python.org/downloads/release/python-3122/" target="_blank">Python 3.12.2</a></li>
   <li><strong>Status:</strong> Stable Release</li>
-  <li><strong>Platform:</strong> Windows</li>
+  <li><strong>Platform:</strong> Cross-Platform</li>
   <li><strong>File Type:</strong> .py (python)</li>
 </ul>
     <strong>Changelog:</strong>
