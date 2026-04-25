@@ -13,7 +13,6 @@ pyfiglet
 faker
 fake-useragent
 user-agent
-cryptography
 pycryptodome
 psutil
 portalocker
