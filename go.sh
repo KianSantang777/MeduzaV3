@@ -10,10 +10,8 @@ log_success() { printf "\033[0;32m[OK]\033[0m %s\n" "$1"; }
 log_warn()    { printf "\033[0;33m[WARN]\033[0m %s\n" "$1"; }
 log_error()   { printf "\033[0;31m[ERROR]\033[0m %s\n" "$1"; exit 1; }
 
-trap 'log_error "Unexpected error at line $LINENO"' ERR
-
 cleanup() {
-    [[ -f "get-pip.py" ]] && rm -f get-pip.py
+    [[ -f "get-pip.py" ]] && rm -f get-pip.py 2>/dev/null || true
 }
 trap cleanup EXIT
 
@@ -36,33 +34,37 @@ detect_os() {
 OS_TYPE=$(detect_os)
 
 auto_update_repo() {
-    command -v git >/dev/null 2>&1 || return
+    command -v git >/dev/null 2>&1 || return 0
 
-    [[ -d ".git" ]] || return
+    [[ -d ".git" ]] || return 0
 
     log_info "Checking updates"
 
-    git fetch --quiet 2>/dev/null || return
+    git fetch --quiet 2>/dev/null || return 0
 
-    LOCAL_HASH=$(git rev-parse HEAD)
+    LOCAL_HASH=$(git rev-parse HEAD 2>/dev/null) || return 0
     REMOTE_HASH=$(git rev-parse @{u} 2>/dev/null || echo "")
 
-    [[ -z "$REMOTE_HASH" ]] && return
+    [[ -z "$REMOTE_HASH" ]] && return 0
 
     if [[ "$LOCAL_HASH" != "$REMOTE_HASH" ]]; then
         log_info "Updating repository"
-        git pull --rebase --autostash --quiet 2>/dev/null || {
+        if git pull --rebase --autostash --quiet 2>/dev/null; then
+            log_success "Repository updated"
+            log_info "Restarting"
+            exec "$0" "${SCRIPT_ARGS[@]}"
+        else
             log_warn "Update failed"
-            return
-        }
-        log_success "Repository updated"
-        log_info "Restarting"
-        exec "$0" "${SCRIPT_ARGS[@]}"
+            return 0
+        fi
     fi
+
+    return 0
 }
 
 fix_pip_network() {
-    mkdir -p ~/.config/pip
+    mkdir -p ~/.config/pip 2>/dev/null || true
+
     cat > ~/.config/pip/pip.conf <<EOF
 [global]
 timeout = 60
@@ -71,7 +73,10 @@ index-url = https://pypi.org/simple
 trusted-host = pypi.org
               files.pythonhosted.org
 EOF
+
     export PIP_DEFAULT_TIMEOUT=60
+
+    return 0
 }
 
 download_file() {
@@ -79,12 +84,12 @@ download_file() {
     local output="$2"
 
     if command -v curl >/dev/null 2>&1; then
-        curl -fsSL --retry 3 -o "$output" "$url" || return 1
+        curl -fsSL --retry 3 -o "$output" "$url" 2>/dev/null && return 0 || return 1
     elif command -v wget >/dev/null 2>&1; then
-        wget -q --tries=3 -O "$output" "$url" || return 1
-    else
-        return 1
+        wget -q --tries=3 -O "$output" "$url" 2>/dev/null && return 0 || return 1
     fi
+
+    return 1
 }
 
 install_dependencies() {
@@ -106,7 +111,9 @@ install_dependencies() {
                 log_error "Failed to install packages"
             ;;
         macos)
-            command -v brew >/dev/null 2>&1 || log_error "Homebrew not found"
+            if ! command -v brew >/dev/null 2>&1; then
+                log_error "Homebrew not found"
+            fi
             brew update >/dev/null 2>&1 || true
             brew install python@3 >/dev/null 2>&1 || true
             ;;
@@ -116,37 +123,47 @@ install_dependencies() {
     esac
 
     log_success "Dependencies ready"
+    return 0
 }
 
 ensure_python() {
-    command -v "$PYTHON_BIN" >/dev/null 2>&1 || \
+    if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
         log_error "Python not found"
+    fi
+    return 0
 }
 
 bootstrap_pip() {
     local py="$1"
 
     if "$py" -m ensurepip --upgrade >/dev/null 2>&1; then
-        return
+        return 0
     fi
 
-    download_file "$GETPIP_URL" "get-pip.py" || \
+    if ! download_file "$GETPIP_URL" "get-pip.py"; then
         log_error "Download failed"
+    fi
 
-    "$py" get-pip.py >/dev/null 2>&1 || \
+    if ! "$py" get-pip.py >/dev/null 2>&1; then
         log_error "pip installation failed"
+    fi
+
+    return 0
 }
 
 check_pip() {
     local py="$1"
 
-    if ! "$py" -m pip --version >/dev/null 2>&1; then
-        if [[ "$OS_TYPE" == "termux" ]]; then
-            log_error "pip not found"
-        else
-            bootstrap_pip "$py"
-        fi
+    if "$py" -m pip --version >/dev/null 2>&1; then
+        return 0
     fi
+
+    if [[ "$OS_TYPE" == "termux" ]]; then
+        log_error "pip not found"
+    fi
+
+    bootstrap_pip "$py"
+    return 0
 }
 
 setup_environment() {
@@ -157,53 +174,67 @@ setup_environment() {
         check_pip "$ACTIVE_PYTHON"
     else
         if [[ ! -d "$VENV_DIR" ]]; then
-            "$PYTHON_BIN" -m venv "$VENV_DIR"
+            "$PYTHON_BIN" -m venv "$VENV_DIR" || log_error "Failed to create venv"
         fi
 
         source "$VENV_DIR/bin/activate"
         ACTIVE_PYTHON="python"
 
         check_pip "$ACTIVE_PYTHON"
-        "$ACTIVE_PYTHON" -m pip install --quiet --upgrade pip
+        "$ACTIVE_PYTHON" -m pip install --quiet --upgrade pip 2>/dev/null || true
     fi
 
-    "$ACTIVE_PYTHON" -m pip install --quiet --no-cache-dir setuptools wheel
+    "$ACTIVE_PYTHON" -m pip install --quiet --no-cache-dir setuptools wheel 2>/dev/null || true
 
     log_success "Environment ready"
+    return 0
 }
 
 install_requirements() {
-    [[ -f requirements.txt ]] || log_error "requirements.txt not found"
-    [[ -s requirements.txt ]] || log_error "requirements.txt is empty"
+    if [[ ! -f requirements.txt ]]; then
+        log_error "requirements.txt not found"
+    fi
+
+    if [[ ! -s requirements.txt ]]; then
+        log_error "requirements.txt is empty"
+    fi
 
     log_info "Installing requirements"
 
-    "$ACTIVE_PYTHON" -m pip install \
+    if ! "$ACTIVE_PYTHON" -m pip install \
         --no-cache-dir \
         --prefer-binary \
         --retries 5 \
         --timeout 60 \
-        -r requirements.txt >/dev/null 2>&1 || \
+        -r requirements.txt >/dev/null 2>&1; then
         log_error "Installation failed"
+    fi
 
     log_success "Requirements installed"
+    return 0
 }
 
 install_extra_packages() {
     log_info "Installing pycryptodome"
 
     "$ACTIVE_PYTHON" -m pip uninstall -y crypto pycrypto >/dev/null 2>&1 || true
-    "$ACTIVE_PYTHON" -m pip install --quiet --no-cache-dir pycryptodome || \
+
+    if ! "$ACTIVE_PYTHON" -m pip install --quiet --no-cache-dir pycryptodome 2>/dev/null; then
         log_error "pycryptodome installation failed"
+    fi
 
     log_success "Extra packages installed"
+    return 0
 }
 
 run_main() {
-    [[ -f main.py ]] || log_error "main.py not found"
+    if [[ ! -f main.py ]]; then
+        log_error "main.py not found"
+    fi
 
     log_info "Starting main.py"
     "$ACTIVE_PYTHON" main.py
+    return 0
 }
 
 main() {
@@ -223,6 +254,7 @@ main() {
     printf "\n"
     log_success "Done"
     printf "\n"
+    return 0
 }
 
 SCRIPT_ARGS=("$@")
