@@ -1,5 +1,5 @@
 <h1 align="center">MeduzaPro</h1>
-<h3 align="center">Version 23.0.3</h3>
+<h3 align="center">Version 23.2.0</h3>
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/KianSantang777/MeduzaV3/refs/heads/main/meduza.jpg" width="48%">
@@ -10,7 +10,7 @@
 <h2>Release Information</h2>
 
 <ul>
-  <li><strong>Version:</strong> 23.0.3</li>
+  <li><strong>Version:</strong> 23.2.0</li>
   <li><strong>Build (Python):</strong> <a href="https://www.python.org/downloads/release/python-3122/" target="_blank">Python 3.12.2</a></li>
   <li><strong>Status:</strong> Stable Release</li>
   <li><strong>Platform:</strong> Cross-Platform</li>
