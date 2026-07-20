@@ -3,10 +3,13 @@ urllib3
 httpx[http2]
 aiohttp
 websocket-client
-python-socketio[client]
+python-socketio
+requests_toolbelt
 cloudscraper
 beautifulsoup4
 colorama
+cookiejar
+bs4
 termcolor
 tqdm
 pyfiglet
@@ -16,4 +19,3 @@ user-agent
 pycryptodome
 psutil
 portalocker
-asyncio
