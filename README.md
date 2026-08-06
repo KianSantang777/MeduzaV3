@@ -1,5 +1,5 @@
 <h1 align="center">MeduzaPro</h1>
-<h3 align="center">Version 23.2.0</h3>
+<h3 align="center">Version 24.1.0</h3>
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/KianSantang777/MeduzaV3/refs/heads/main/meduza.jpg" width="48%">
@@ -10,11 +10,11 @@
 <h2>Release Information</h2>
 
 <ul>
-  <li><strong>Version:</strong> 23.2.0</li>
-  <li><strong>Build (Python):</strong> <a href="https://www.python.org/downloads/release/python-3122/" target="_blank">Python 3.12.2</a></li>
+  <li><strong>Version:</strong> 24.1.0</li>
+  <li><strong>Build (Python):</strong> <a href="https://www.python.org/downloads/release/python-3133/" target="_blank">Python 3.13.3</a></li>
   <li><strong>Status:</strong> Stable Release</li>
   <li><strong>Platform:</strong> Cross-Platform</li>
-  <li><strong>File Type:</strong> .py (python)</li>
+  <li><strong>File Type:</strong> .so (python)</li>
 </ul>
     <strong>Changelog:</strong>
     <a href="https://github.com/KianSantang777/MeduzaV3/commits/Version-3.0.1">
@@ -32,7 +32,8 @@ $ pkg install git python -y
 $ git clone https://github.com/KianSantang777/MeduzaV3.git
 $ cd MeduzaV3
 $ chmod +x go.sh
-$ ./go.sh
+$ pip install -r requirements.txt
+$ ./build_all.sh
 </code></pre>
 
 
@@ -43,8 +44,9 @@ $ sudo apt update && sudo apt upgrade -y
 $ sudo apt install git python3 python3-pip -y
 $ git clone https://github.com/KianSantang777/MeduzaV3.git
 $ cd MeduzaV3
-$ chmod +x go.sh
-$ ./go.sh
+$ chmod +x *
+$ pip install -r requirements.txt
+$ ./build_all.sh
 </code></pre>
 
 <hr>
