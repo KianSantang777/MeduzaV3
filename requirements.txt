@@ -2,6 +2,7 @@ requests
 requests[socks]
 cookiejar
 bs4
+setuptools
 python-socketio
 python-websocket
 faker
