@@ -4,7 +4,6 @@ cookiejar
 bs4
 setuptools
 python-socketio
-python-websocket
 faker
 pyfiglet
 colorama
