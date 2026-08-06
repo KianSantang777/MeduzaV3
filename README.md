@@ -34,6 +34,7 @@ $ cd MeduzaV3
 $ chmod +x go.sh
 $ pip install -r requirements.txt
 $ ./build_all.sh
+$ python run.py
 </code></pre>
 
 
@@ -47,6 +48,7 @@ $ cd MeduzaV3
 $ chmod +x *
 $ pip install -r requirements.txt
 $ ./build_all.sh
+$ python run.py
 </code></pre>
 
 <hr>
