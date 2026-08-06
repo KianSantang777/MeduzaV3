@@ -33,7 +33,6 @@ $ git clone https://github.com/KianSantang777/MeduzaV3.git
 $ cd MeduzaV3
 $ chmod +x go.sh
 $ pip install -r requirements.txt
-$ ./build_all.sh
 $ python run.py
 </code></pre>
 
@@ -45,9 +44,8 @@ $ sudo apt update && sudo apt upgrade -y
 $ sudo apt install git python3 python3-pip -y
 $ git clone https://github.com/KianSantang777/MeduzaV3.git
 $ cd MeduzaV3
-$ chmod +x *
+$ chmod +x go.sh
 $ pip install -r requirements.txt
-$ ./build_all.sh
 $ python run.py
 </code></pre>
 
