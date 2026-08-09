@@ -33,7 +33,7 @@ $ git clone https://github.com/KianSantang777/MeduzaV3.git
 $ cd MeduzaV3
 $ chmod +x go.sh
 $ pip install -r requirements.txt
-$ python run.py
+$ python main.py
 </code></pre>
 
 
@@ -46,7 +46,7 @@ $ git clone https://github.com/KianSantang777/MeduzaV3.git
 $ cd MeduzaV3
 $ chmod +x go.sh
 $ pip install -r requirements.txt
-$ python run.py
+$ python main.py
 </code></pre>
 
 <hr>
