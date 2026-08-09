@@ -2,6 +2,7 @@ requests
 requests[socks]
 cookiejar
 bs4
+tqdm
 setuptools
 python-socketio
 faker
