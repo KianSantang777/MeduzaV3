@@ -243,13 +243,13 @@ install_extra_packages() {
 }
 
 run_main() {
-    if [[ ! -f run.py ]]; then
-        log_warn "run.py not found, skipping execution"
+    if [[ ! -f main.py ]]; then
+        log_warn "main.py not found, skipping execution"
         return 0
     fi
 
-    log_info "Starting run.py"
-    "$ACTIVE_PYTHON" run.py
+    log_info "Starting main.py"
+    "$ACTIVE_PYTHON" main.py
     return 0
 }
 
