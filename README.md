@@ -33,7 +33,7 @@ $ git clone https://github.com/KianSantang777/MeduzaV3.git
 $ cd MeduzaV3
 $ chmod +x go.sh
 $ pip install -r requirements.txt
-$ python main.py
+$ ./go.sh
 </code></pre>
 
 
@@ -45,8 +45,8 @@ $ sudo apt install git python3 python3-pip -y
 $ git clone https://github.com/KianSantang777/MeduzaV3.git
 $ cd MeduzaV3
 $ chmod +x go.sh
-$ pip install -r requirements.txt
-$ python main.py
+$ pip3 install -r requirements.txt
+$ python3 run.py
 </code></pre>
 
 <hr>
