@@ -1,5 +1,5 @@
 <h1 align="center">MeduzaPro</h1>
-<h3 align="center">Version 24.1.0</h3>
+<h3 align="center">Version 24.1.2</h3>
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/KianSantang777/MeduzaV3/refs/heads/main/meduza.jpg" width="48%">
@@ -10,7 +10,7 @@
 <h2>Release Information</h2>
 
 <ul>
-  <li><strong>Version:</strong> 24.1.0</li>
+  <li><strong>Version:</strong> 24.1.2</li>
   <li><strong>Build (Python):</strong> <a href="https://www.python.org/downloads/release/python-3133/" target="_blank">Python 3.13.3</a></li>
   <li><strong>Status:</strong> Stable Release</li>
   <li><strong>Platform:</strong> Cross-Platform</li>
@@ -31,9 +31,9 @@ $ pkg update -y && pkg upgrade -y
 $ pkg install git python -y
 $ git clone https://github.com/KianSantang777/MeduzaV3.git
 $ cd MeduzaV3
-$ chmod +x go.sh
 $ pip install -r requirements.txt
-$ ./go.sh
+$ python build.py
+$ python run.py
 </code></pre>
 
 
@@ -41,11 +41,13 @@ $ ./go.sh
 
 <pre><code>
 $ sudo apt update && sudo apt upgrade -y
-$ sudo apt install git python3 python3-pip -y
+$ sudo apt install git python3 python3-pip python3-venv -y
 $ git clone https://github.com/KianSantang777/MeduzaV3.git
 $ cd MeduzaV3
-$ chmod +x go.sh
+$ python3 -m venv .venv
+$ source .venv/bin/activate
 $ pip3 install -r requirements.txt
+$ python3 build.py
 $ python3 run.py
 </code></pre>
 
