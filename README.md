@@ -32,7 +32,6 @@ $ pkg install git python -y
 $ git clone https://github.com/KianSantang777/MeduzaV3.git
 $ cd MeduzaV3
 $ pip install -r requirements.txt
-$ python build.py
 $ python run.py
 </code></pre>
 
@@ -47,7 +46,6 @@ $ cd MeduzaV3
 $ python3 -m venv .venv
 $ source .venv/bin/activate
 $ pip3 install -r requirements.txt
-$ python3 build.py
 $ python3 run.py
 </code></pre>
 
