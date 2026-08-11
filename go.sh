@@ -2,9 +2,7 @@
 set -Eeo pipefail
 
 VENV_DIR="${VENV_DIR:-venv}"
-REPO_URL="https://github.com/KianSantang777/MeduzaV3"
 BRANCH="${BRANCH:-main}"
-GETPIP_URL="https://bootstrap.pypa.io/get-pip.py"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -18,55 +16,86 @@ w() { printf "${YELLOW}!${RESET} %s\n" "$1"; }
 e() { printf "${RED}✗${RESET} %s\n" "$1"; exit 1; }
 
 detect_os() {
-    if [[ -n "${TERMUX_VERSION:-}" ]] || [[ -d "/data/data/com.termux" ]]; then echo "termux"
-    elif [[ "$OSTYPE" == "darwin"* ]]; then echo "macos"
+    if [[ -n "${TERMUX_VERSION:-}" ]] || [[ -d "/data/data/com.termux" ]]; then
+        echo "termux"
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
+        echo "macos"
     elif [[ "$OSTYPE" == "linux"* ]]; then
-        [[ -f /etc/debian_version ]] && echo "debian" || echo "linux"
-    else echo "unknown"; fi
+        if [[ -f /etc/redhat-release ]]; then
+            echo "redhat"
+        elif [[ -f /etc/debian_version ]]; then
+            echo "debian"
+        else
+            echo "linux"
+        fi
+    else
+        echo "unknown"
+    fi
 }
 
-OS_TYPE=$(detect_os)
-
-download_file() {
-    if command -v curl &> /dev/null; then curl -fsSL --retry 3 -o "$2" "$1" 2>/dev/null && return 0; fi
-    if command -v wget &> /dev/null; then wget -q --tries=3 -O "$2" "$1" 2>/dev/null && return 0; fi
-    return 1
+install_system_pkg() {
+    case "$OS_TYPE" in
+        termux) pkg update -y >/dev/null 2>&1 && pkg install -y "$@" ;;
+        debian) sudo apt-get update -y >/dev/null 2>&1 && sudo apt-get install -y "$@" ;;
+        redhat) sudo dnf install -y "$@" >/dev/null 2>&1 || sudo yum install -y "$@" ;;
+        macos) command -v brew &> /dev/null && brew install "$@" ;;
+    esac
 }
 
-install_git() {
+check_git() {
     if command -v git &> /dev/null; then return 0; fi
     i "Installing git..."
     case "$OS_TYPE" in
-        termux) pkg update -y >/dev/null 2>&1 && pkg install -y git ;;
-        debian) sudo apt-get update -y >/dev/null 2>&1 && sudo apt-get install -y git ;;
-        redhat) sudo dnf install -y git >/dev/null 2>&1 || sudo yum install -y git ;;
-        macos) command -v brew &> /dev/null && brew install git ;;
-        *) e "Install git manually";;
+        termux) install_system_pkg git ;;
+        debian) install_system_pkg git ;;
+        redhat) install_system_pkg git ;;
+        macos) brew install git 2>/dev/null || w "Install git manually" ;;
+        *) w "Git not found, install manually"; return 1 ;;
     esac
-    command -v git &> /dev/null || e "Git installation failed"
+    command -v git &> /dev/null || { w "Git installation failed"; return 1; }
+}
+
+check_python() {
+    for py in python3 python python3.12 python3.11 python3.10 python3.9; do
+        if command -v $py &> /dev/null; then
+            PYTHON_BIN=$py
+            PYTHON_VERSION=$($py -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+            return 0
+        fi
+    done
+    return 1
 }
 
 install_python() {
-    for py in python3 python python3.12 python3.11 python3.10 python3.9; do
-        if command -v $py &> /dev/null; then PYTHON_BIN=$py; return 0; fi
-    done
     i "Installing Python..."
     case "$OS_TYPE" in
-        termux) pkg update -y >/dev/null 2>&1 && pkg install -y python python-pip git curl wget ;;
-        debian) sudo apt-get update -y >/dev/null 2>&1 && sudo apt-get install -y python3 python3-pip python3-venv git curl wget build-essential ;;
-        redhat) sudo dnf install -y python3 python3-pip git curl wget gcc >/dev/null 2>&1 || sudo yum install -y python3 python3-pip git curl wget ;;
-        macos) command -v brew &> /dev/null && brew install python git curl wget || e "Install Python from python.org";;
-        *) e "Install Python 3.8+ manually";;
+        termux)
+            install_system_pkg python python-pip
+            ;;
+        debian)
+            install_system_pkg python3 python3-pip python3-venv
+            ;;
+        redhat)
+            install_system_pkg python3 python3-pip
+            ;;
+        macos)
+            if command -v brew &> /dev/null; then
+                brew install python
+            else
+                e "Install Python from python.org"
+            fi
+            ;;
+        *)
+            e "Unsupported OS. Install Python 3.8+ manually"
+            ;;
     esac
-    for py in python3 python; do command -v $py &> /dev/null && PYTHON_BIN=$py && return 0; done
-    e "Python installation failed"
+    check_python || e "Python installation failed"
 }
 
-install_pip() {
+check_pip() {
     if $PYTHON_BIN -m pip --version &> /dev/null; then return 0; fi
     i "Installing pip..."
     $PYTHON_BIN -m ensurepip --upgrade &> /dev/null && return 0
-    download_file "$GETPIP_URL" "get-pip.py" && $PYTHON_BIN get-pip.py &> /dev/null && return 0
     e "pip installation failed"
 }
 
@@ -75,39 +104,75 @@ setup_venv() {
     [[ -d "$VENV_DIR" ]] && rm -rf "$VENV_DIR"
     $PYTHON_BIN -m venv "$VENV_DIR" || e "Failed to create venv"
     source "$VENV_DIR/bin/activate"
-    python -m pip install --upgrade pip --quiet 2>/dev/null || python -m pip install --upgrade pip
     s "Virtual environment ready"
 }
 
 install_packages() {
     i "Installing packages..."
-    for pkg in requests colorama tqdm faker requests_toolbelt cython pyfiglet python-socketio; do
-        printf "  ${YELLOW}▸${RESET} $pkg... "
-        python -m pip install --no-cache-dir "$pkg" --quiet 2>/dev/null && echo "${GREEN}✓${RESET}" || { echo "${YELLOW}retry${RESET}"; python -m pip install --no-cache-dir "$pkg"; }
+    PACKAGES=(
+        "requests"
+        "colorama"
+        "tqdm"
+        "faker"
+        "requests_toolbelt"
+        "cython"
+        "pyfiglet"
+        "python-socketio"
+    )
+    for pkg in "${PACKAGES[@]}"; do
+        printf "  ${YELLOW}▸${RESET} %-20s " "$pkg"
+        if python -m pip install --no-cache-dir "$pkg" -q 2>/dev/null; then
+            echo "${GREEN}✓${RESET}"
+        else
+            echo "${YELLOW}⚠${RESET}"
+        fi
     done
     s "Packages installed"
 }
 
 check_updates() {
+    if ! command -v git &> /dev/null; then
+        i "Git not available, skip update check"
+        return 0
+    fi
+    if [[ ! -d ".git" ]]; then
+        i "Not a git repo, skip update check"
+        return 0
+    fi
+    if ! git remote get-url origin &> /dev/null; then
+        i "No remote configured, skip update check"
+        return 0
+    fi
+
     i "Checking updates..."
-    if [[ ! -d ".git" ]]; then i "Not a git repo, skipping"; return 0; fi
-    if ! git remote get-url origin &> /dev/null; then i "No remote, skipping"; return 0; fi
-    git fetch origin $BRANCH --quiet 2>/dev/null || { w "Fetch failed"; return 0; }
+    if ! git fetch origin "$BRANCH" --quiet 2>/dev/null; then
+        w "Fetch failed"
+        return 0
+    fi
+
     LOCAL=$(git rev-parse HEAD 2>/dev/null || echo "")
-    REMOTE=$(git rev-parse origin/$BRANCH 2>/dev/null || echo "")
-    [[ -z "$LOCAL" ]] || [[ -z "$REMOTE" ]] && return 0
+    REMOTE=$(git rev-parse "origin/$BRANCH" 2>/dev/null || echo "")
+
+    if [[ -z "$LOCAL" ]] || [[ -z "$REMOTE" ]]; then
+        return 0
+    fi
+
     if [[ "$LOCAL" != "$REMOTE" ]]; then
         echo ""
         echo "  ┌─────────────────────────────────────┐"
-        echo "  │         UPDATE AVAILABLE            │"
+        echo "  │         UPDATE AVAILABLE              │"
         echo "  └─────────────────────────────────────┘"
         echo ""
         read -p "  Update now? [Y/n]: " -n 1 -r
         echo ""
         if [[ ! $REPLY =~ ^[Nn]$ ]]; then
             i "Updating..."
-            git pull origin $BRANCH --autostash && s "Updated!" || e "Update failed"
-            exec "$0" "${SCRIPT_ARGS[@]}"
+            if git pull origin "$BRANCH" --autostash 2>/dev/null; then
+                s "Updated!"
+                exec "$0" "${SCRIPT_ARGS[@]}"
+            else
+                e "Update failed"
+            fi
         fi
     else
         s "Up to date"
@@ -116,21 +181,34 @@ check_updates() {
 
 check_files() {
     i "Checking files..."
-    for f in run.py build.py; do
-        if [[ -f "$f" ]]; then s "$f"; else e "Missing: $f"; fi
-    done
-    BINARY=$(find . -maxdepth 1 \( -name "*.so" -o -name "*.pyd" \) 2>/dev/null | head -1)
-    if [[ -n "$BINARY" ]]; then s "Binary: $(basename $BINARY)"
+    if [[ -f "run.py" ]]; then
+        s "run.py"
+    else
+        e "Missing: run.py"
+    fi
+
+    BINARY=$(find . -maxdepth 1 \( -name "*.so" -o -name "*.pyd" \) 2>/dev/null | head -n1)
+    if [[ -n "$BINARY" ]]; then
+        s "Binary: $(basename "$BINARY")"
     else
         w "No binary found"
-        read -p "  Build now? [Y/n]: " -n 1 -r
-        echo ""
-        [[ ! $REPLY =~ ^[Nn]$ ]] && { python build.py || e "Build failed"; }
+        if [[ -f "build.py" ]]; then
+            read -p "  Build now? [Y/n]: " -n 1 -r
+            echo ""
+            if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+                if python build.py >/dev/null 2>&1; then
+                    s "Build complete"
+                else
+                    w "Build failed, continue anyway"
+                fi
+            fi
+        fi
     fi
 }
 
 main() {
     SCRIPT_ARGS=("$@")
+
     echo ""
     echo "  ┌─────────────────────────────────────┐"
     echo "  │           MeduzaV3                  │"
@@ -141,16 +219,13 @@ main() {
     echo "  OS: $OS_TYPE"
     echo ""
 
-    install_git; s "Git ready"
-    install_python; s "Python: $($PYTHON_BIN --version)"
-    install_pip; s "pip ready"
+    if ! check_python; then
+        install_python
+    fi
+    s "Python: $PYTHON_VERSION"
 
-    mkdir -p ~/.config/pip 2>/dev/null
-    cat > ~/.config/pip/pip.conf <<< '[global]
-timeout = 60
-retries = 5
-index-url = https://pypi.org/simple
-trusted-host = pypi.org files.pythonhosted.org' 2>/dev/null || true
+    check_git || true
+    check_pip || true
 
     setup_venv
     install_packages
@@ -159,7 +234,7 @@ trusted-host = pypi.org files.pythonhosted.org' 2>/dev/null || true
 
     echo ""
     echo "  ┌─────────────────────────────────────┐"
-    echo "  │        Ready to start!              │"
+    echo "  │         Ready to start!             │"
     echo "  └─────────────────────────────────────┘"
     echo ""
     read -p "  Start? [Y/n]: " -n 1 -r
@@ -167,7 +242,7 @@ trusted-host = pypi.org files.pythonhosted.org' 2>/dev/null || true
 
     if [[ ! $REPLY =~ ^[Nn]$ ]]; then
         source "$VENV_DIR/bin/activate"
-        python run.py "${SCRIPT_ARGS[@]}"
+        python3 run.py "${SCRIPT_ARGS[@]}"
     else
         i "Run './go.sh' to start later"
     fi
