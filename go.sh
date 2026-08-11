@@ -1,277 +1,177 @@
 #!/usr/bin/env bash
 set -Eeo pipefail
 
-PYTHON_BIN="${PYTHON_BIN:-python3}"
 VENV_DIR="${VENV_DIR:-venv}"
+REPO_URL="https://github.com/KianSantang777/MeduzaV3"
+BRANCH="${BRANCH:-main}"
 GETPIP_URL="https://bootstrap.pypa.io/get-pip.py"
 
-log_info()    { printf "\033[0;34m[INFO]\033[0m %s\n" "$1"; }
-log_success() { printf "\033[0;32m[OK]\033[0m %s\n" "$1"; }
-log_warn()    { printf "\033[0;33m[WARN]\033[0m %s\n" "$1"; }
-log_error()   { printf "\033[0;31m[ERROR]\033[0m %s\n" "$1"; }
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+RESET='\033[0m'
 
-cleanup() {
-    [[ -f "get-pip.py" ]] && rm -f get-pip.py 2>/dev/null || true
-}
-trap cleanup EXIT
+i() { printf "${CYAN}▸${RESET} %s\n" "$1"; }
+s() { printf "${GREEN}✓${RESET} %s\n" "$1"; }
+w() { printf "${YELLOW}!${RESET} %s\n" "$1"; }
+e() { printf "${RED}✗${RESET} %s\n" "$1"; exit 1; }
 
 detect_os() {
-    if [[ -n "${TERMUX_VERSION:-}" ]]; then
-        echo "termux"
-    elif [[ "$OSTYPE" == "darwin"* ]]; then
-        echo "macos"
-    elif [[ -f /etc/debian_version ]]; then
-        echo "debian"
-    elif [[ -f /etc/redhat-release ]]; then
-        echo "redhat"
-    elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-        echo "linux"
-    else
-        echo "unknown"
-    fi
+    if [[ -n "${TERMUX_VERSION:-}" ]] || [[ -d "/data/data/com.termux" ]]; then echo "termux"
+    elif [[ "$OSTYPE" == "darwin"* ]]; then echo "macos"
+    elif [[ "$OSTYPE" == "linux"* ]]; then
+        [[ -f /etc/debian_version ]] && echo "debian" || echo "linux"
+    else echo "unknown"; fi
 }
 
 OS_TYPE=$(detect_os)
 
-auto_update_repo() {
-    command -v git >/dev/null 2>&1 || return 0
-
-    [[ -d ".git" ]] || return 0
-
-    log_info "Checking updates"
-
-    git fetch --quiet 2>/dev/null || return 0
-
-    LOCAL_HASH=$(git rev-parse HEAD 2>/dev/null) || return 0
-    REMOTE_HASH=$(git rev-parse @{u} 2>/dev/null || echo "")
-
-    [[ -z "$REMOTE_HASH" ]] && return 0
-
-    if [[ "$LOCAL_HASH" != "$REMOTE_HASH" ]]; then
-        log_info "Updating repository"
-        if git pull --rebase --autostash --quiet 2>/dev/null; then
-            log_success "Repository updated"
-            log_info "Restarting"
-            exec "$0" "${SCRIPT_ARGS[@]}"
-        else
-            log_warn "Update failed"
-            return 0
-        fi
-    fi
-
-    return 0
-}
-
-fix_pip_network() {
-    mkdir -p ~/.config/pip 2>/dev/null || true
-
-    cat > ~/.config/pip/pip.conf <<EOF
-[global]
-timeout = 60
-retries = 5
-index-url = https://pypi.org/simple
-trusted-host = pypi.org
-              files.pythonhosted.org
-EOF
-
-    export PIP_DEFAULT_TIMEOUT=60
-
-    return 0
-}
-
 download_file() {
-    local url="$1"
-    local output="$2"
-
-    if command -v curl >/dev/null 2>&1; then
-        curl -fsSL --retry 3 -o "$output" "$url" 2>/dev/null && return 0 || return 1
-    elif command -v wget >/dev/null 2>&1; then
-        wget -q --tries=3 -O "$output" "$url" 2>/dev/null && return 0 || return 1
-    fi
-
+    if command -v curl &> /dev/null; then curl -fsSL --retry 3 -o "$2" "$1" 2>/dev/null && return 0; fi
+    if command -v wget &> /dev/null; then wget -q --tries=3 -O "$2" "$1" 2>/dev/null && return 0; fi
     return 1
 }
 
-install_dependencies() {
-    log_info "Installing dependencies"
-
+install_git() {
+    if command -v git &> /dev/null; then return 0; fi
+    i "Installing git..."
     case "$OS_TYPE" in
-        termux)
-            pkg update -y >/dev/null 2>&1 || true
-            pkg install -y python git curl wget ca-certificates >/dev/null 2>&1 || \
-                log_error "Failed to install packages"
-            ;;
-        debian)
-            sudo apt update -y >/dev/null 2>&1 || true
-            sudo apt install -y python3 python3-venv python3-pip git curl wget build-essential >/dev/null 2>&1 || \
-                log_error "Failed to install packages"
-            ;;
-        redhat)
-            sudo dnf install -y python3 python3-pip git curl wget gcc >/dev/null 2>&1 || \
-                log_error "Failed to install packages"
-            ;;
-        macos)
-            if ! command -v brew >/dev/null 2>&1; then
-                log_error "Homebrew not found"
-            fi
-            brew update >/dev/null 2>&1 || true
-            brew install python@3 >/dev/null 2>&1 || true
-            ;;
-        *)
-            log_warn "Please install manually: python3 python3-venv python3-pip git curl wget"
-            ;;
+        termux) pkg update -y >/dev/null 2>&1 && pkg install -y git ;;
+        debian) sudo apt-get update -y >/dev/null 2>&1 && sudo apt-get install -y git ;;
+        redhat) sudo dnf install -y git >/dev/null 2>&1 || sudo yum install -y git ;;
+        macos) command -v brew &> /dev/null && brew install git ;;
+        *) e "Install git manually";;
     esac
-
-    log_success "Dependencies ready"
-    return 0
+    command -v git &> /dev/null || e "Git installation failed"
 }
 
-ensure_python() {
-    if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
-        log_error "Python not found"
-    fi
-    return 0
+install_python() {
+    for py in python3 python python3.12 python3.11 python3.10 python3.9; do
+        if command -v $py &> /dev/null; then PYTHON_BIN=$py; return 0; fi
+    done
+    i "Installing Python..."
+    case "$OS_TYPE" in
+        termux) pkg update -y >/dev/null 2>&1 && pkg install -y python python-pip git curl wget ;;
+        debian) sudo apt-get update -y >/dev/null 2>&1 && sudo apt-get install -y python3 python3-pip python3-venv git curl wget build-essential ;;
+        redhat) sudo dnf install -y python3 python3-pip git curl wget gcc >/dev/null 2>&1 || sudo yum install -y python3 python3-pip git curl wget ;;
+        macos) command -v brew &> /dev/null && brew install python git curl wget || e "Install Python from python.org";;
+        *) e "Install Python 3.8+ manually";;
+    esac
+    for py in python3 python; do command -v $py &> /dev/null && PYTHON_BIN=$py && return 0; done
+    e "Python installation failed"
 }
 
-bootstrap_pip() {
-    local py="$1"
-
-    if "$py" -m ensurepip --upgrade >/dev/null 2>&1; then
-        return 0
-    fi
-
-    if ! download_file "$GETPIP_URL" "get-pip.py"; then
-        log_warn "Download failed, trying alternative method"
-        return 1
-    fi
-
-    if ! "$py" get-pip.py >/dev/null 2>&1; then
-        log_warn "pip installation failed, trying alternative"
-        return 1
-    fi
-
-    return 0
+install_pip() {
+    if $PYTHON_BIN -m pip --version &> /dev/null; then return 0; fi
+    i "Installing pip..."
+    $PYTHON_BIN -m ensurepip --upgrade &> /dev/null && return 0
+    download_file "$GETPIP_URL" "get-pip.py" && $PYTHON_BIN get-pip.py &> /dev/null && return 0
+    e "pip installation failed"
 }
 
-check_pip() {
-    local py="$1"
-
-    if "$py" -m pip --version >/dev/null 2>&1; then
-        return 0
-    fi
-
-    if [[ "$OS_TYPE" == "termux" ]]; then
-        log_warn "pip not found, installing..."
-        bootstrap_pip "$py" || log_warn "Bootstrap failed, continuing anyway"
-    else
-        bootstrap_pip "$py" || log_warn "Bootstrap failed, trying system pip"
-    fi
-
-    return 0
+setup_venv() {
+    i "Setting up virtual environment..."
+    [[ -d "$VENV_DIR" ]] && rm -rf "$VENV_DIR"
+    $PYTHON_BIN -m venv "$VENV_DIR" || e "Failed to create venv"
+    source "$VENV_DIR/bin/activate"
+    python -m pip install --upgrade pip --quiet 2>/dev/null || python -m pip install --upgrade pip
+    s "Virtual environment ready"
 }
 
-setup_environment() {
-    fix_pip_network
+install_packages() {
+    i "Installing packages..."
+    for pkg in requests colorama tqdm faker requests_toolbelt cython pyfiglet python-socketio; do
+        printf "  ${YELLOW}▸${RESET} $pkg... "
+        python -m pip install --no-cache-dir "$pkg" --quiet 2>/dev/null && echo "${GREEN}✓${RESET}" || { echo "${YELLOW}retry${RESET}"; python -m pip install --no-cache-dir "$pkg"; }
+    done
+    s "Packages installed"
+}
 
-    if [[ "$OS_TYPE" == "termux" ]]; then
-        ACTIVE_PYTHON="$PYTHON_BIN"
-        check_pip "$ACTIVE_PYTHON"
-    else
-        if [[ ! -d "$VENV_DIR" ]]; then
-            log_info "Creating virtual environment"
-            if ! "$PYTHON_BIN" -m venv "$VENV_DIR"; then
-                log_warn "Failed to create venv, using system Python"
-                ACTIVE_PYTHON="$PYTHON_BIN"
-            else
-                source "$VENV_DIR/bin/activate"
-                ACTIVE_PYTHON="python"
-            fi
-        else
-            source "$VENV_DIR/bin/activate"
-            ACTIVE_PYTHON="python"
+check_updates() {
+    i "Checking updates..."
+    if [[ ! -d ".git" ]]; then i "Not a git repo, skipping"; return 0; fi
+    if ! git remote get-url origin &> /dev/null; then i "No remote, skipping"; return 0; fi
+    git fetch origin $BRANCH --quiet 2>/dev/null || { w "Fetch failed"; return 0; }
+    LOCAL=$(git rev-parse HEAD 2>/dev/null || echo "")
+    REMOTE=$(git rev-parse origin/$BRANCH 2>/dev/null || echo "")
+    [[ -z "$LOCAL" ]] || [[ -z "$REMOTE" ]] && return 0
+    if [[ "$LOCAL" != "$REMOTE" ]]; then
+        echo ""
+        echo "  ┌─────────────────────────────────────┐"
+        echo "  │         UPDATE AVAILABLE            │"
+        echo "  └─────────────────────────────────────┘"
+        echo ""
+        read -p "  Update now? [Y/n]: " -n 1 -r
+        echo ""
+        if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+            i "Updating..."
+            git pull origin $BRANCH --autostash && s "Updated!" || e "Update failed"
+            exec "$0" "${SCRIPT_ARGS[@]}"
         fi
-
-        check_pip "$ACTIVE_PYTHON"
-        "$ACTIVE_PYTHON" -m pip install --quiet --upgrade pip 2>/dev/null || true
+    else
+        s "Up to date"
     fi
-
-    "$ACTIVE_PYTHON" -m pip install --quiet --no-cache-dir setuptools wheel 2>/dev/null || true
-
-    log_success "Environment ready"
-    return 0
 }
 
-install_requirements() {
-    if [[ ! -f requirements.txt ]]; then
-        log_warn "requirements.txt not found, skipping"
-        return 0
+check_files() {
+    i "Checking files..."
+    for f in run.py build.py; do
+        if [[ -f "$f" ]]; then s "$f"; else e "Missing: $f"; fi
+    done
+    BINARY=$(find . -maxdepth 1 \( -name "*.so" -o -name "*.pyd" \) 2>/dev/null | head -1)
+    if [[ -n "$BINARY" ]]; then s "Binary: $(basename $BINARY)"
+    else
+        w "No binary found"
+        read -p "  Build now? [Y/n]: " -n 1 -r
+        echo ""
+        [[ ! $REPLY =~ ^[Nn]$ ]] && { python build.py || e "Build failed"; }
     fi
-
-    if [[ ! -s requirements.txt ]]; then
-        log_warn "requirements.txt is empty, skipping"
-        return 0
-    fi
-
-    log_info "Installing requirements"
-
-    if ! "$ACTIVE_PYTHON" -m pip install \
-        --no-cache-dir \
-        --prefer-binary \
-        --retries 5 \
-        --timeout 60 \
-        -r requirements.txt; then
-        log_warn "Some requirements failed, continuing..."
-    fi
-
-    log_success "Requirements installed"
-    return 0
-}
-
-install_extra_packages() {
-    log_info "Installing pycryptodome (optional)"
-
-    "$ACTIVE_PYTHON" -m pip uninstall -y crypto pycrypto >/dev/null 2>&1 || true
-
-    # Make pycryptodome optional, not mandatory
-    if ! "$ACTIVE_PYTHON" -m pip install --quiet --no-cache-dir pycryptodome 2>/dev/null; then
-        log_warn "pycryptodome installation failed (optional for basic operation)"
-        log_warn "Encryption will use fallback methods"
-    fi
-
-    log_success "Extra packages check complete"
-    return 0
-}
-
-run_main() {
-    if [[ ! -f run.py ]]; then
-        log_warn "run.py not found, skipping execution"
-        return 0
-    fi
-
-    log_info "Starting run.py"
-    "$ACTIVE_PYTHON" run.py
-    return 0
 }
 
 main() {
-    printf "\n"
-    printf "\033[1;36m%s\033[0m\n" "CHK Environment Setup"
-    printf "\033[0;36m%s\033[0m\n" "======================"
-    printf "\n"
+    SCRIPT_ARGS=("$@")
+    echo ""
+    echo "  ┌─────────────────────────────────────┐"
+    echo "  │           MeduzaV3                  │"
+    echo "  │        Tools CC Checker             │"
+    echo "  │   t.me/xqndrs │ t.me/xqndrs66       │"
+    echo "  └─────────────────────────────────────┘"
+    echo ""
+    echo "  OS: $OS_TYPE"
+    echo ""
 
-    auto_update_repo || log_warn "Auto-update failed"
-    install_dependencies || log_warn "Dependency installation had issues"
-    ensure_python || log_error "Python check failed"
-    setup_environment || log_error "Environment setup failed"
-    install_requirements || log_warn "Requirements installation had issues"
-    install_extra_packages || log_warn "Extra packages installation had issues"
-    run_main || log_warn "Main execution failed"
+    install_git; s "Git ready"
+    install_python; s "Python: $($PYTHON_BIN --version)"
+    install_pip; s "pip ready"
 
-    printf "\n"
-    log_success "Setup complete"
-    printf "\n"
-    return 0
+    mkdir -p ~/.config/pip 2>/dev/null
+    cat > ~/.config/pip/pip.conf <<< '[global]
+timeout = 60
+retries = 5
+index-url = https://pypi.org/simple
+trusted-host = pypi.org files.pythonhosted.org' 2>/dev/null || true
+
+    setup_venv
+    install_packages
+    check_updates
+    check_files
+
+    echo ""
+    echo "  ┌─────────────────────────────────────┐"
+    echo "  │        Ready to start!              │"
+    echo "  └─────────────────────────────────────┘"
+    echo ""
+    read -p "  Start? [Y/n]: " -n 1 -r
+    echo ""
+
+    if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+        source "$VENV_DIR/bin/activate"
+        python run.py "${SCRIPT_ARGS[@]}"
+    else
+        i "Run './go.sh' to start later"
+    fi
 }
 
-SCRIPT_ARGS=("$@")
+trap 'echo ""; i "Interrupted."; exit 130' INT
 main "$@"
