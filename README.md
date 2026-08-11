@@ -32,7 +32,8 @@ $ pkg install git python -y
 $ git clone https://github.com/KianSantang777/MeduzaV3.git
 $ cd MeduzaV3
 $ pip install -r requirements.txt
-$ python run.py
+$ chmod +x go.sh
+$ ./go.sh
 </code></pre>
 
 
@@ -43,10 +44,8 @@ $ sudo apt update && sudo apt upgrade -y
 $ sudo apt install git python3 python3-pip python3-venv -y
 $ git clone https://github.com/KianSantang777/MeduzaV3.git
 $ cd MeduzaV3
-$ python3 -m venv .venv
-$ source .venv/bin/activate
-$ pip3 install -r requirements.txt
-$ python3 run.py
+$ chmod +x go.sh
+$ ./go.sh
 </code></pre>
 
 <hr>
