@@ -9,23 +9,23 @@ VENV_DIR="${VENV_DIR:-venv}"
 BRANCH="${BRANCH:-main}"
 PYTHON_MIN_VERSION="3.8"
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-MAGENTA='\033[0;35m'
-WHITE='\033[1;37m'
-RESET='\033[0m'
-BOLD='\033[1m'
+RED=$'\033[0;31m'
+GREEN=$'\033[0;32m'
+YELLOW=$'\033[1;33m'
+BLUE=$'\033[0;34m'
+CYAN=$'\033[0;36m'
+MAGENTA=$'\033[0;35m'
+WHITE=$'\033[1;37m'
+RESET=$'\033[0m'
+BOLD=$'\033[1m'
 
 CHECK="${GREEN}✓${RESET}"
 CROSS="${RED}✗${RESET}"
 ARROW="${CYAN}▸${RESET}"
 WARN="${YELLOW}⚠${RESET}"
 
-declare -a FAILED_STEPS=()
-declare -a WARNINGS=()
+FAILED_STEPS=()
+WARNINGS=()
 EXIT_CODE=0
 AUTO_YES=1
 
@@ -77,7 +77,7 @@ _exit_handler() {
 }
 
 detect_os() {
-    [[ -n "$_os_type" ]] && { echo "$_os_type"; return; }
+    if [[ -n "$_os_type" ]]; then echo "$_os_type"; return; fi
 
     if [[ -n "${TERMUX_VERSION:-}" ]] || [[ -d "/data/data/com.termux" ]]; then
         _os_type="termux"
@@ -90,7 +90,7 @@ detect_os() {
             case "$id" in
                 ubuntu|debian|kali|linuxmint|pop|elementary) _os_type="debian" ;;
                 fedora|rhel|centos|rocky|alma) _os_type="redhat" ;;
-                arch|manjaro) _os_type="arch" ;;
+                arch|manjaro|endeavouros) _os_type="arch" ;;
                 alpine) _os_type="alpine" ;;
                 *) _os_type="linux" ;;
             esac
@@ -106,12 +106,11 @@ detect_os() {
     else
         _os_type="unknown"
     fi
-
     echo "$_os_type"
 }
 
 detect_arch() {
-    [[ -n "$_os_arch" ]] && { echo "$_os_arch"; return; }
+    if [[ -n "$_os_arch" ]]; then echo "$_os_arch"; return; fi
     local arch
     arch=$(uname -m 2>/dev/null || echo "unknown")
     case "$arch" in
