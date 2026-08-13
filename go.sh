@@ -1,13 +1,7 @@
 #!/usr/bin/env bash
-set -Eeo pipefail
-
-trap '_fatal_handler' ERR
-trap '_interrupt_handler' INT
-trap '_exit_handler' EXIT
 
 VENV_DIR="${VENV_DIR:-venv}"
 BRANCH="${BRANCH:-main}"
-PYTHON_MIN_VERSION="3.8"
 
 RED=$'\033[0;31m'
 GREEN=$'\033[0;32m'
@@ -24,13 +18,16 @@ CROSS="${RED}✗${RESET}"
 ARROW="${CYAN}▸${RESET}"
 WARN="${YELLOW}⚠${RESET}"
 
-FAILED_STEPS=()
-WARNINGS=()
+FAILED_STEPS=""
+WARNINGS=""
 EXIT_CODE=0
 AUTO_YES=1
 
 _os_type=""
 _os_arch=""
+PYTHON_BIN=""
+PYTHON_VERSION=""
+SCRIPT_ARGS=""
 
 _log() {
     local level="$1"
@@ -43,7 +40,7 @@ _log() {
         step)  printf '%s%s[%s]%s %s\n' "$CYAN" "$ARROW" "$ts" "$RESET" "$msg" ;;
         ok)    printf '%s%s[%s]%s %s\n' "$GREEN" "$CHECK" "$ts" "$RESET" "$msg" ;;
         fail)  printf '%s%s[%s]%s %s\n' "$RED" "$CROSS" "$ts" "$RESET" "$msg" >&2; EXIT_CODE=1 ;;
-        warn)  printf '%s%s[%s]%s %s\n' "$YELLOW" "$WARN" "$ts" "$RESET" "$msg"; WARNINGS+=("$msg") ;;
+        warn)  printf '%s%s[%s]%s %s\n' "$YELLOW" "$WARN" "$ts" "$RESET" "$msg"; WARNINGS="${WARNINGS}|$msg" ;;
         debug) [[ "${DEBUG:-0}" == "1" ]] && printf '%s[%s] DEBUG: %s\n' "$MAGENTA" "$ts" "$msg" ;;
     esac
 }
@@ -54,27 +51,13 @@ e()  { _log fail "$*"; }
 w()  { _log warn "$*"; }
 d()  { _log debug "$*"; }
 
-_fatal_handler() {
-    local line="${BASH_LINENO[0]}"
-    local code=$?
-    _log fail "Error at line $line (exit: $code)"
-    if [[ ${#FAILED_STEPS[@]} -gt 0 ]]; then
-        echo ""
-        _log warn "Failed steps:"
-        for step in "${FAILED_STEPS[@]}"; do echo "    - $step"; done
-    fi
-    exit $code
-}
-
 _interrupt_handler() {
     echo ""
     _log warn "Interrupted"
     exit 130
 }
 
-_exit_handler() {
-    [[ ${#WARNINGS[@]} -gt 0 ]] && _log warn "Completed with ${#WARNINGS[@]} warning(s)"
-}
+trap '_interrupt_handler' INT
 
 detect_os() {
     if [[ -n "$_os_type" ]]; then echo "$_os_type"; return; fi
@@ -258,7 +241,7 @@ install_packages() {
         else
             printf '%s✗%s\n' "$RED" "$RESET"
             ((failed++))
-            WARNINGS+=("Failed: $pkg")
+            WARNINGS="${WARNINGS}|Failed: $pkg"
         fi
     done
 
@@ -297,7 +280,7 @@ check_updates() {
             i "Updating..."
             if git pull origin "$BRANCH" --autostash 2>/dev/null; then
                 s "Updated!"
-                exec "$0" "${SCRIPT_ARGS[@]}"
+                exec "$0" "${SCRIPT_ARGS}"
             else
                 e "Update failed"
             fi
@@ -315,10 +298,10 @@ check_files() {
         s "run.py found"
     else
         e "Missing: run.py"
-        ((missing++))
+        missing=$((missing + 1))
     fi
 
-    local binary
+    local binary=""
     if [[ "$(detect_os)" == "windows" ]]; then
         binary=$(find . -maxdepth 1 -name "*.pyd" 2>/dev/null | head -n1)
     else
@@ -344,7 +327,7 @@ check_files() {
 }
 
 main() {
-    SCRIPT_ARGS=("$@")
+    SCRIPT_ARGS="$*"
 
     for arg in "$@"; do
         case "$arg" in
@@ -398,7 +381,7 @@ main() {
 
     i "Starting MeduzaV3..."
     echo ""
-    python run.py "${SCRIPT_ARGS[@]}"
+    python run.py ${SCRIPT_ARGS}
     EXIT_CODE=$?
 
     [[ $EXIT_CODE -eq 0 ]] && s "Completed" || w "Exit code: $EXIT_CODE"
