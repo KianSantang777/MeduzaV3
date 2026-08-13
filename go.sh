@@ -201,27 +201,58 @@ activate_venv() {
 }
 
 install_packages() {
+    local packages="faker colorama setuptools wheel requests requests-toolbelt python-socketio tqdm"
+    local total=$(echo $packages | wc -w)
+    local cur=0
+    local failed=""
+    local retry=0
+    local max_retry=3
+
     i "Installing packages..."
 
     python -m pip install --upgrade pip -q 2>/dev/null
 
-    local packages="requests colorama tqdm faker requests-toolbelt cython pyfiglet python-socketio"
-    local total=8
-    local cur=0
-
-    for pkg in $packages; do
-        cur=$((cur + 1))
-        printf '\r  %s[%d/%d]%s %-20s ' "$CYAN" "$cur" "$total" "$RESET" "$pkg"
-        if python -m pip install --no-cache-dir "$pkg" -q 2>/dev/null; then
-            printf '%s✓%s\n' "$GREEN" "$RESET"
-        else
-            printf '%s✗%s\n' "$RED" "$RESET"
-            w "Failed: $pkg"
+    while true; do
+        ((retry++))
+        if [[ $retry -gt 1 ]]; then
+            echo ""
+            i "Retry $retry/$max_retry..."
+            echo ""
         fi
-    done
 
-    echo ""
-    s "Packages installed"
+        cur=0
+        failed=""
+        all_success=true
+
+        for pkg in $packages; do
+            ((cur++))
+            printf '\r  %s[%d/%d]%s %-20s ' "$CYAN" "$cur" "$total" "$RESET" "$pkg"
+
+            if python -m pip install --no-cache-dir "$pkg" -q 2>/dev/null; then
+                printf '%s✓%s\n' "$GREEN" "$RESET"
+            else
+                printf '%s✗%s\n' "$RED" "$RESET"
+                failed="$failed $pkg"
+                all_success=false
+            fi
+        done
+
+        echo ""
+
+        if $all_success; then
+            s "All packages installed successfully"
+            return 0
+        fi
+
+        if [[ $retry -ge $max_retry ]]; then
+            w "Some packages failed after $max_retry attempts: $failed"
+            return 1
+        fi
+
+        w "Some packages failed: $failed"
+        w "Waiting 3 seconds before retry..."
+        sleep 3
+    done
 }
 
 check_updates() {
