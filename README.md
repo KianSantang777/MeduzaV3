@@ -28,12 +28,12 @@
 <pre><code>
 $ termux-setup-storage
 $ pkg update -y && pkg upgrade -y
-$ pkg install git python -y
+$ pkg install git python python-venv -y
 $ git clone https://github.com/KianSantang777/MeduzaV3.git
 $ cd MeduzaV3
+$ chmod +x *
 $ pip install -r requirements.txt
-$ chmod +x go.sh
-$ ./go.sh
+$ ./go.sh && python run.py
 </code></pre>
 
 
@@ -44,8 +44,11 @@ $ sudo apt update && sudo apt upgrade -y
 $ sudo apt install git python3 python3-pip python3-venv -y
 $ git clone https://github.com/KianSantang777/MeduzaV3.git
 $ cd MeduzaV3
-$ chmod +x go.sh
-$ ./go.sh
+$ chmod +x *
+$ python3 -m venv venv
+$ source venv/bin/activate
+$ pip3 install -r requirements.txt
+$ ./go.sh && python3 run.py
 </code></pre>
 
 <hr>
