@@ -5,7 +5,7 @@
 **Version 24.1.2 · Stable Release**
 
 <p>
-  <img src="https://raw.githubusercontent.com/KianSantang777/MeduzaV3/refs/heads/main/meduza.jpg" width="520">
+  <img src="https://raw.githubusercontent.com/KianSantang777/MeduzaV3/refs/heads/main/Main.png" width="820">
 </p>
 
 <p>
@@ -38,7 +38,7 @@ It focuses on browser-like session handling, request processing, and response cl
 | Python    | **3.13.3**         |
 | Status    | **Stable**         |
 | Platform  | **Cross-Platform** |
-| File Type | **Python / .so**   |
+| File Type | **Python / .py**   |
 
 [View Commit History](https://github.com/KianSantang777/MeduzaV3/commits/Version-3.0.1)
 
