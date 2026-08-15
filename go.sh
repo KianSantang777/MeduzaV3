@@ -1,419 +1,1124 @@
 #!/usr/bin/env bash
+set -u
+set -o pipefail
 
-VENV_DIR="${VENV_DIR:-venv}"
-BRANCH="${BRANCH:-main}"
+REPO_URL="https://github.com/KianSantang777/MeduzaV3.git"
+REPO_DIR="MeduzaV3"
+BRANCH="main"
+VENV_DIR="venv"
 
-RED=$'\033[0;31m'
-GREEN=$'\033[0;32m'
-YELLOW=$'\033[1;33m'
-BLUE=$'\033[0;34m'
-CYAN=$'\033[0;36m'
-MAGENTA=$'\033[0;35m'
-WHITE=$'\033[1;37m'
-RESET=$'\033[0m'
-BOLD=$'\033[1m'
+MAX_RETRIES=3
+ERROR_LOG_LINES=25
 
-CHECK="${GREEN}✓${RESET}"
-CROSS="${RED}✗${RESET}"
-ARROW="${CYAN}▸${RESET}"
-WARN="${YELLOW}⚠${RESET}"
+RESET="\033[0m"
+BOLD="\033[1m"
+DIM="\033[2m"
 
-WARNINGS=""
-EXIT_CODE=0
+RED="\033[31m"
+GREEN="\033[32m"
+YELLOW="\033[33m"
+CYAN="\033[36m"
+WHITE="\033[97m"
 
-_os_type=""
-_os_arch=""
-PYTHON_BIN=""
-PYTHON_VERSION=""
+SPINNER_FRAMES=(
+    "⠋"
+    "⠙"
+    "⠹"
+    "⠸"
+    "⠼"
+    "⠴"
+    "⠦"
+    "⠧"
+    "⠇"
+    "⠏"
+)
+
+PLATFORM=""
+DISTRO=""
+PACKAGE_MANAGER=""
 PYTHON_CMD=""
+VENV_PYTHON=""
+PRIVILEGE_CMD=()
 
-_log() {
-    local level="$1"
-    shift
-    local msg="$*"
-    local ts
-    ts=$(date '+%H:%M:%S' 2>/dev/null)
+CURRENT_TMP_DIR=""
+SPINNER_PID=""
 
-    case "$level" in
-        step)  printf '%s%s[%s]%s %s\n' "$CYAN" "$ARROW" "$ts" "$RESET" "$msg" ;;
-        ok)    printf '%s%s[%s]%s %s\n' "$GREEN" "$CHECK" "$ts" "$RESET" "$msg" ;;
-        fail)  printf '%s%s[%s]%s %s\n' "$RED" "$CROSS" "$ts" "$RESET" "$msg" >&2; EXIT_CODE=1 ;;
-        warn)  printf '%s%s[%s]%s %s\n' "$YELLOW" "$WARN" "$ts" "$RESET" "$msg"; WARNINGS="${WARNINGS}|${msg}" ;;
-        debug) [[ "${DEBUG:-0}" == "1" ]] && printf '%s[%s] DEBUG: %s\n' "$MAGENTA" "$ts" "$msg" ;;
-    esac
-}
+cleanup() {
 
-i() { _log step "$*"; }
-s() { _log ok "$*"; }
-e() { _log fail "$*"; }
-w() { _log warn "$*"; }
-d() { _log debug "$*"; }
+    if [[ -n "${SPINNER_PID:-}" ]]; then
 
-trap 'echo ""; _log warn "Interrupted"; exit 130' INT
-
-detect_os() {
-    [[ -n "$_os_type" ]] && { echo "$_os_type"; return; }
-
-    if [[ -n "${TERMUX_VERSION:-}" ]] || [[ -d "/data/data/com.termux" ]]; then
-        _os_type="termux"
-    elif [[ "$OSTYPE" == "darwin"* ]]; then
-        _os_type="macos"
-    elif [[ "$OSTYPE" == "linux"* ]]; then
-        if [[ -f /etc/os-release ]]; then
-            local id
-            id=$(grep -oP '^ID=\K\w+' /etc/os-release 2>/dev/null)
-            case "$id" in
-                ubuntu|debian|kali|linuxmint|pop|elementary) _os_type="debian" ;;
-                fedora|rhel|centos|rocky|alma) _os_type="redhat" ;;
-                arch|manjaro|endeavouros) _os_type="arch" ;;
-                alpine) _os_type="alpine" ;;
-                *) _os_type="linux" ;;
-            esac
-        elif [[ -f /etc/redhat-release ]]; then
-            _os_type="redhat"
-        elif [[ -f /etc/debian_version ]]; then
-            _os_type="debian"
-        else
-            _os_type="linux"
+        if kill -0 "$SPINNER_PID" >/dev/null 2>&1; then
+            kill "$SPINNER_PID" >/dev/null 2>&1 || true
         fi
-    elif [[ "$OSTYPE" == "msys"* ]] || [[ "$OSTYPE" == "cygwin"* ]]; then
-        _os_type="windows"
-    else
-        _os_type="unknown"
+
+        SPINNER_PID=""
     fi
 
-    echo "$_os_type"
+    printf '\r\033[K'
+
+    if [[ -n "${CURRENT_TMP_DIR:-}" &&
+          -d "$CURRENT_TMP_DIR" ]]; then
+
+        rm -rf "$CURRENT_TMP_DIR" >/dev/null 2>&1 || true
+    fi
 }
 
-detect_arch() {
-    [[ -n "$_os_arch" ]] && { echo "$_os_arch"; return; }
-    local arch
-    arch=$(uname -m 2>/dev/null)
-    case "$arch" in
-        x86_64|amd64) _os_arch="x64" ;;
-        aarch64|arm64) _os_arch="arm64" ;;
-        armv7l|armhf) _os_arch="arm" ;;
-        i386|i686) _os_arch="x86" ;;
-        *) _os_arch="$arch" ;;
-    esac
-    echo "$_os_arch"
+trap cleanup EXIT
+trap 'printf "\n"; echo -e "${YELLOW}!${RESET} Installation interrupted."; exit 130' INT TERM
+
+
+clear_screen() {
+    if [[ -t 1 ]]; then
+        clear 2>/dev/null || true
+    fi
 }
 
-has_cmd() {
+separator() {
+    printf '%s\n' "────────────────────────────────────────────────────────────"
+}
+
+header() {
+
+    clear_screen
+
+    echo
+    echo -e "${BOLD}${WHITE}MeduzaV3 Checker KianSantang${RESET}"
+    echo -e "${DIM}Cross-Platform Environment Installer${RESET}"
+    echo
+
+    separator
+    echo
+}
+
+section() {
+
+    echo
+    echo -e "${BOLD}${WHITE}$1${RESET}"
+    separator
+}
+
+info() {
+    echo -e "${CYAN}›${RESET} $1"
+}
+
+success() {
+    echo -e "${GREEN}✓${RESET} $1"
+}
+
+warning() {
+    echo -e "${YELLOW}!${RESET} $1"
+}
+
+failure() {
+    echo -e "${RED}✗${RESET} $1"
+}
+
+command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
-check_python() {
-    local versions="python3 python python3.12 python3.11 python3.10 python3.9 python3.8"
-    for py in $versions; do
-        if has_cmd "$py"; then
-            local bin ver
-            bin=$(command -v "$py")
-            ver=$("$py" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null)
-            if [[ -n "$ver" ]]; then
-                PYTHON_BIN="$bin"
-                PYTHON_VERSION="$ver"
-                local major minor
-                major=${ver%%.*}
-                minor=${ver#*.}
-                minor=${minor%%.*}
-                if [[ "$major" -lt 3 ]] || { [[ "$major" -eq 3 ]] && [[ "$minor" -lt 8 ]]; }; then
-                    w "Python $ver detected (needs 3.8+)"
-                    continue
-                fi
-                d "Python: $PYTHON_BIN ($PYTHON_VERSION)"
-                return 0
-            fi
-        fi
-    done
-    return 1
-}
+spinner_loop() {
 
-check_pip() {
-    [[ -z "${PYTHON_BIN:-}" ]] && return 1
-    "${PYTHON_BIN}" -m pip --version >/dev/null 2>&1
-}
-
-install_git() {
-    i "Installing git..."
-    case "$(detect_os)" in
-        termux)  pkg update -y >/dev/null 2>&1 && pkg install -y git ;;
-        debian)  sudo apt-get update -y >/dev/null 2>&1 && sudo apt-get install -y git ;;
-        redhat)  sudo dnf install -y git >/dev/null 2>&1 || sudo yum install -y git ;;
-        arch)    sudo pacman -Syu --noconfirm git ;;
-        alpine)  apk add --no-cache git ;;
-        macos)   has_cmd brew && brew install git ;;
-        windows) w "Install git from https://git-scm.com"; return 1 ;;
-        *)       w "Unsupported OS"; return 1 ;;
-    esac
-    has_cmd git && s "Git installed" || { e "Git installation failed"; return 1; }
-}
-
-install_python() {
-    i "Installing Python..."
-    case "$(detect_os)" in
-        termux)  pkg update -y >/dev/null 2>&1 && pkg install -y python python-pip ;;
-        debian)  sudo apt-get update -y >/dev/null 2>&1 && sudo apt-get install -y python3 python3-pip python3-venv ;;
-        redhat)  sudo dnf install -y python3 python3-pip >/dev/null 2>&1 || sudo yum install -y python3 python3-pip ;;
-        arch)    sudo pacman -Syu --noconfirm python python-pip ;;
-        alpine)  apk add --no-cache python3 py3-pip ;;
-        macos)   has_cmd brew && brew install python ;;
-        windows) e "Install Python from python.org"; return 1 ;;
-        *)       e "Unsupported OS"; return 1 ;;
-    esac
-    hash -r 2>/dev/null
-    check_python && s "Python installed: $PYTHON_VERSION" || { e "Python installation failed"; return 1; }
-}
-
-install_pip() {
-    i "Installing pip..."
-    if "${PYTHON_BIN}" -m ensurepip --upgrade >/dev/null 2>&1; then
-        s "pip installed"
-        return 0
-    fi
-    if has_cmd curl; then
-        curl -sS https://bootstrap.pypa.io/get-pip.py | "${PYTHON_BIN}" >/dev/null 2>&1 && {
-            s "pip installed"
-            return 0
-        }
-    fi
-    e "pip installation failed"
-    return 1
-}
-
-setup_venv() {
-    i "Setting up venv..."
-    [[ -d "$VENV_DIR" ]] && rm -rf "$VENV_DIR"
-    "${PYTHON_BIN}" -m venv "$VENV_DIR" || { e "Failed to create venv"; return 1; }
-    s "Venv ready: $VENV_DIR"
-}
-
-activate_venv() {
-    if [[ -f "${VENV_DIR}/bin/activate" ]]; then
-        source "${VENV_DIR}/bin/activate"
-    elif [[ -f "${VENV_DIR}/Scripts/activate" ]]; then
-        source "${VENV_DIR}/Scripts/activate"
-    else
-        e "Venv activation failed"
-        return 1
-    fi
-    d "Venv activated"
-}
-
-install_packages() {
-    local packages="faker colorama setuptools wheel requests requests-toolbelt python-socketio tqdm"
-    local total=$(echo $packages | wc -w)
-    local cur=0
-    local failed=""
-    local retry=0
-    local max_retry=3
-
-    i "Installing packages..."
-
-    python -m pip install --upgrade pip -q 2>/dev/null
+    local message="$1"
+    local index=0
 
     while true; do
-        ((retry++))
-        if [[ $retry -gt 1 ]]; then
-            echo ""
-            i "Retry $retry/$max_retry..."
-            echo ""
+
+        printf '\r\033[K%s %s' \
+            "${SPINNER_FRAMES[$index]}" \
+            "$message"
+
+        index=$((index + 1))
+
+        if [[ "$index" -ge "${#SPINNER_FRAMES[@]}" ]]; then
+            index=0
         fi
 
-        cur=0
-        failed=""
-        all_success=true
-
-        for pkg in $packages; do
-            ((cur++))
-            printf '\r  %s[%d/%d]%s %-20s ' "$CYAN" "$cur" "$total" "$RESET" "$pkg"
-
-            if python -m pip install --no-cache-dir "$pkg" -q 2>/dev/null; then
-                printf '%s✓%s\n' "$GREEN" "$RESET"
-            else
-                printf '%s✗%s\n' "$RED" "$RESET"
-                failed="$failed $pkg"
-                all_success=false
-            fi
-        done
-
-        echo ""
-
-        if $all_success; then
-            s "All packages installed successfully"
-            return 0
-        fi
-
-        if [[ $retry -ge $max_retry ]]; then
-            w "Some packages failed after $max_retry attempts: $failed"
-            return 1
-        fi
-
-        w "Some packages failed: $failed"
-        w "Waiting 3 seconds before retry..."
-        sleep 3
+        sleep 0.10
     done
 }
 
-check_updates() {
-    has_cmd git || return 0
-    [[ -d ".git" ]] || return 0
-    git remote get-url origin >/dev/null 2>&1 || return 0
+run_with_spinner() {
 
-    i "Checking updates..."
-    git fetch origin "$BRANCH" --quiet 2>/dev/null || { w "Fetch failed"; return 0; }
+    local message="$1"
+    shift
 
-    local local_rev=$(git rev-parse HEAD 2>/dev/null)
-    local remote_rev=$(git rev-parse "origin/$BRANCH" 2>/dev/null)
+    local log_file
+    local exit_code
 
-    [[ -z "$local_rev" || -z "$remote_rev" ]] && return 0
+    CURRENT_TMP_DIR="$(mktemp -d 2>/dev/null)"
 
-    if [[ "$local_rev" != "$remote_rev" ]]; then
-        echo ""
-        echo -e "  ${YELLOW}┌─────────────────────────────────────┐${RESET}"
-        echo -e "  ${YELLOW}│${RESET}         ${BOLD}UPDATE AVAILABLE${RESET}             ${YELLOW}│${RESET}"
-        echo -e "  ${YELLOW}└─────────────────────────────────────┘${RESET}"
-        echo -n "  Update now? [Y/n]: "
-        read -n 1 -r REPLY
-        echo ""
-        if [[ ! "$REPLY" =~ ^[Nn]$ ]]; then
-            i "Updating..."
-            if git pull origin "$BRANCH" --autostash 2>/dev/null; then
-                s "Updated!"
-                exec "$0" "$@"
-            else
-                e "Update failed"
-            fi
-        fi
-    else
-        s "Up to date"
+    if [[ -z "$CURRENT_TMP_DIR" ||
+          ! -d "$CURRENT_TMP_DIR" ]]; then
+
+        failure "Unable to create temporary workspace."
+        return 1
     fi
+
+    log_file="$CURRENT_TMP_DIR/command.log"
+
+    "$@" >"$log_file" 2>&1 &
+    local command_pid=$!
+
+    if [[ -t 1 ]]; then
+
+        spinner_loop "$message" &
+        SPINNER_PID=$!
+
+    else
+        info "$message"
+    fi
+
+    wait "$command_pid"
+    exit_code=$?
+
+    if [[ -n "${SPINNER_PID:-}" ]]; then
+
+        if kill -0 "$SPINNER_PID" >/dev/null 2>&1; then
+            kill "$SPINNER_PID" >/dev/null 2>&1 || true
+        fi
+
+        wait "$SPINNER_PID" 2>/dev/null || true
+        SPINNER_PID=""
+    fi
+
+    printf '\r\033[K'
+
+    if [[ "$exit_code" -eq 0 ]]; then
+
+        success "$message"
+        return 0
+    fi
+
+    failure "$message"
+
+    if [[ -f "$log_file" ]]; then
+
+        echo
+        echo -e "${DIM}Last ${ERROR_LOG_LINES} lines of the error output:${RESET}"
+
+        tail -n "$ERROR_LOG_LINES" "$log_file" 2>/dev/null || true
+
+        echo
+    fi
+
+    return "$exit_code"
 }
 
-check_files() {
-    i "Checking files..."
-    [[ -f "run.py" ]] && s "run.py found" || { e "Missing: run.py"; return 1; }
 
-    local binary=""
-    if [[ "$(detect_os)" == "windows" ]]; then
-        binary=$(find . -maxdepth 1 -name "*.pyd" 2>/dev/null | head -n1)
-    else
-        binary=$(find . -maxdepth 1 \( -name "*.so" -o -name "*.pyd" \) 2>/dev/null | head -n1)
+detect_platform() {
+
+    if [[ -n "${TERMUX_VERSION:-}" ]] ||
+       [[ -d "/data/data/com.termux" ]]; then
+
+        PLATFORM="termux"
+
+        if [[ -f "/etc/os-release" ]]; then
+            DISTRO="$(grep '^ID=' /etc/os-release 2>/dev/null |
+                cut -d= -f2 | tr -d '"')"
+        else
+            DISTRO="termux"
+        fi
+
+        return 0
     fi
 
-    [[ -n "$binary" ]] && s "Binary: $(basename "$binary")" || w "No binary found"
+    if [[ "$OSTYPE" == "darwin"* ]]; then
 
-    [[ -f "build.py" && -z "$binary" ]] && {
-        echo -n "  Build now? [Y/n]: "
-        read -n 1 -r REPLY
-        echo ""
-        if [[ ! "$REPLY" =~ ^[Nn]$ ]]; then
-            i "Building..."
-            python build.py >/dev/null 2>&1 && s "Build complete" || w "Build failed"
+        PLATFORM="macos"
+        DISTRO="macos"
+
+        return 0
+    fi
+
+    if [[ "$OSTYPE" == "linux"* ]]; then
+
+        PLATFORM="linux"
+
+        if [[ -f "/etc/os-release" ]]; then
+
+            DISTRO="$(
+                grep '^ID=' /etc/os-release 2>/dev/null |
+                cut -d= -f2 |
+                tr -d '"' |
+                tr '[:upper:]' '[:lower:]'
+            )"
+
+        else
+            DISTRO="unknown"
         fi
-    }
+
+        return 0
+    fi
+
+    PLATFORM="unknown"
+    DISTRO="unknown"
+}
+
+
+detect_package_manager() {
+
+    case "$PLATFORM" in
+
+        termux)
+
+            if command_exists pkg; then
+                PACKAGE_MANAGER="pkg"
+                return 0
+            fi
+
+            ;;
+
+        macos)
+
+            if command_exists brew; then
+                PACKAGE_MANAGER="brew"
+                return 0
+            fi
+
+            ;;
+
+        linux)
+
+            if command_exists apt-get; then
+                PACKAGE_MANAGER="apt"
+                return 0
+            fi
+
+            if command_exists dnf; then
+                PACKAGE_MANAGER="dnf"
+                return 0
+            fi
+
+            if command_exists yum; then
+                PACKAGE_MANAGER="yum"
+                return 0
+            fi
+
+            if command_exists pacman; then
+                PACKAGE_MANAGER="pacman"
+                return 0
+            fi
+
+            if command_exists apk; then
+                PACKAGE_MANAGER="apk"
+                return 0
+            fi
+
+            ;;
+
+    esac
+
+    PACKAGE_MANAGER="unknown"
+}
+
+
+setup_privilege_command() {
+
+    PRIVILEGE_CMD=()
+
+    if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
+        return 0
+    fi
+
+    if command_exists sudo; then
+
+        PRIVILEGE_CMD=("sudo")
+
+        return 0
+    fi
+
+    failure "Root privileges or sudo are required."
+    return 1
+}
+
+
+detect_python() {
+
+    PYTHON_CMD=""
+
+    if command_exists python3; then
+
+        PYTHON_CMD="python3"
+        return 0
+    fi
+
+    if command_exists python; then
+
+        if python --version >/dev/null 2>&1; then
+
+            PYTHON_CMD="python"
+            return 0
+        fi
+    fi
+
+    return 1
+}
+
+
+install_system_dependencies() {
+
+    section "System environment"
+
+    case "$PACKAGE_MANAGER" in
+
+        pkg)
+
+            info "Detected: Termux"
+
+            run_with_spinner \
+                "Updating package index" \
+                pkg update -y \
+                || return 1
+
+            if ! command_exists git; then
+
+                run_with_spinner \
+                    "Installing Git" \
+                    pkg install -y git \
+                    || return 1
+
+            else
+                success "Git is already installed."
+            fi
+
+            if ! command_exists python; then
+
+                run_with_spinner \
+                    "Installing Python" \
+                    pkg install -y python \
+                    || return 1
+
+            else
+                success "Python is already installed."
+            fi
+
+            ;;
+
+        apt)
+
+            info "Detected: ${DISTRO:-Linux} / APT"
+
+            setup_privilege_command || return 1
+
+            if ! command_exists git ||
+               ! command_exists python3; then
+
+                run_with_spinner \
+                    "Updating APT package index" \
+                    "${PRIVILEGE_CMD[@]}" apt-get update -y \
+                    || return 1
+
+                run_with_spinner \
+                    "Installing system dependencies" \
+                    "${PRIVILEGE_CMD[@]}" apt-get install -y \
+                    git \
+                    python3 \
+                    python3-pip \
+                    python3-venv \
+                    || return 1
+
+            else
+                success "Git and Python are already installed."
+            fi
+
+            ;;
+
+        dnf)
+
+            info "Detected: ${DISTRO:-Linux} / DNF"
+
+            setup_privilege_command || return 1
+
+            run_with_spinner \
+                "Installing system dependencies" \
+                "${PRIVILEGE_CMD[@]}" dnf install -y \
+                git \
+                python3 \
+                python3-pip \
+                || return 1
+
+            ;;
+
+        yum)
+
+            info "Detected: ${DISTRO:-Linux} / YUM"
+
+            setup_privilege_command || return 1
+
+            run_with_spinner \
+                "Installing system dependencies" \
+                "${PRIVILEGE_CMD[@]}" yum install -y \
+                git \
+                python3 \
+                python3-pip \
+                || return 1
+
+            ;;
+
+        pacman)
+
+            info "Detected: ${DISTRO:-Linux} / Pacman"
+
+            setup_privilege_command || return 1
+
+            run_with_spinner \
+                "Synchronizing package database" \
+                "${PRIVILEGE_CMD[@]}" pacman -Sy --noconfirm \
+                || return 1
+
+            run_with_spinner \
+                "Installing system dependencies" \
+                "${PRIVILEGE_CMD[@]}" pacman -S --noconfirm \
+                git \
+                python \
+                python-pip \
+                || return 1
+
+            ;;
+
+        apk)
+
+            info "Detected: ${DISTRO:-Linux} / APK"
+
+            setup_privilege_command || return 1
+
+            run_with_spinner \
+                "Installing system dependencies" \
+                "${PRIVILEGE_CMD[@]}" apk add \
+                git \
+                python3 \
+                py3-pip \
+                || return 1
+
+            ;;
+
+        brew)
+
+            info "Detected: macOS / Homebrew"
+
+            if ! command_exists brew; then
+
+                failure "Homebrew is not installed."
+                echo
+                echo "Install Homebrew first, then run this installer again."
+                return 1
+            fi
+
+            if ! command_exists git; then
+
+                run_with_spinner \
+                    "Installing Git" \
+                    brew install git \
+                    || return 1
+
+            else
+                success "Git is already installed."
+            fi
+
+            if ! command_exists python3; then
+
+                run_with_spinner \
+                    "Installing Python" \
+                    brew install python \
+                    || return 1
+
+            else
+                success "Python is already installed."
+            fi
+
+            ;;
+
+        *)
+
+            failure "No supported package manager was detected."
+
+            echo
+            echo "Supported package managers:"
+            echo "  apt"
+            echo "  dnf"
+            echo "  yum"
+            echo "  pacman"
+            echo "  apk"
+            echo "  pkg"
+            echo "  brew"
+            echo
+
+            return 1
+            ;;
+
+    esac
+
+    hash -r 2>/dev/null || true
+
+    if ! command_exists git; then
+
+        failure "Git is still unavailable after installation."
+        return 1
+    fi
+
+    if ! detect_python; then
+
+        failure "Python is still unavailable after installation."
+        return 1
+    fi
+
+    success "System environment is ready."
+    return 0
+}
+
+
+repository_exists() {
+
+    [[ -d "$REPO_DIR/.git" ]]
+}
+
+verify_git_repository() {
+
+    if ! repository_exists; then
+        return 0
+    fi
+
+    if ! git -C "$REPO_DIR" rev-parse --is-inside-work-tree \
+        >/dev/null 2>&1; then
+
+        failure "The existing repository is invalid."
+        return 1
+    fi
 
     return 0
 }
 
-get_python_cmd() {
-    local os
-    os=$(detect_os)
-    case "$os" in
-        termux)
-            PYTHON_CMD="python run.py"
-            ;;
-        macos)
-            PYTHON_CMD="python3 run.py"
-            ;;
-        debian|redhat|arch|alpine|linux)
-            PYTHON_CMD="python3 run.py"
-            ;;
-        windows)
-            PYTHON_CMD="python run.py"
-            ;;
-        *)
-            PYTHON_CMD="python run.py"
-            ;;
-    esac
-    echo "$PYTHON_CMD"
+repair_git_remote() {
+
+    local current_remote
+
+    current_remote="$(
+        git -C "$REPO_DIR" remote get-url origin \
+        2>/dev/null || true
+    )"
+
+    if [[ -z "$current_remote" ]]; then
+
+        info "Git remote 'origin' is missing."
+
+        git -C "$REPO_DIR" remote add origin "$REPO_URL" \
+            || {
+                failure "Unable to add Git remote."
+                return 1
+            }
+
+        success "Git remote repaired."
+        return 0
+    fi
+
+    if [[ "$current_remote" != "$REPO_URL" &&
+          "$current_remote" != "${REPO_URL%.git}" ]]; then
+
+        info "Git remote does not match the configured repository."
+        info "Repairing remote configuration..."
+
+        git -C "$REPO_DIR" remote set-url origin "$REPO_URL" \
+            || {
+                failure "Unable to repair Git remote."
+                return 1
+            }
+
+        success "Git remote repaired."
+    else
+        success "Git remote is correct."
+    fi
+
+    return 0
 }
 
-run_app() {
-    local cmd
-    cmd=$(get_python_cmd)
 
-    echo ""
-    echo -e "  ${GREEN}╔═══════════════════════════════════════════╗${RESET}"
-    echo -e "  ${GREEN}║${RESET}         ${BOLD}Ready to start!${RESET}                 ${GREEN}║${RESET}"
-    echo -e "  ${GREEN}╚═══════════════════════════════════════════╝${RESET}"
-    echo ""
+setup_repository() {
 
-    i "Starting MeduzaV3..."
-    i "Command: $cmd"
-    echo ""
+    section "Repository"
 
-    eval "$cmd"
-    EXIT_CODE=$?
+    if ! repository_exists; then
 
-    echo ""
-    [[ $EXIT_CODE -eq 0 ]] && s "Completed successfully" || w "Exit code: $EXIT_CODE"
-    exit $EXIT_CODE
+        info "Repository is not installed."
+        info "Cloning repository..."
+
+        run_with_spinner \
+            "Cloning MeduzaV3 repository" \
+            git clone \
+            --branch "$BRANCH" \
+            --single-branch \
+            "$REPO_URL" \
+            "$REPO_DIR" \
+            || return 1
+
+        success "Repository cloned successfully."
+
+        return 0
+    fi
+
+    verify_git_repository || return 1
+
+    repair_git_remote || return 1
+
+    info "Checking repository updates..."
+
+    run_with_spinner \
+        "Fetching repository metadata" \
+        git -C "$REPO_DIR" fetch \
+        --prune \
+        origin \
+        "$BRANCH" \
+        || return 1
+
+    local current_branch
+
+    current_branch="$(
+        git -C "$REPO_DIR" branch \
+        --show-current 2>/dev/null || true
+    )"
+
+    if [[ "$current_branch" != "$BRANCH" ]]; then
+
+        info "Switching to branch '${BRANCH}'..."
+
+        if git -C "$REPO_DIR" show-ref \
+            --verify \
+            --quiet \
+            "refs/heads/$BRANCH"; then
+
+            git -C "$REPO_DIR" checkout "$BRANCH" \
+                >/dev/null 2>&1 \
+                || {
+                    failure "Unable to switch to branch '${BRANCH}'."
+                    return 1
+                }
+
+        else
+
+            git -C "$REPO_DIR" checkout \
+                -b "$BRANCH" \
+                "origin/$BRANCH" \
+                >/dev/null 2>&1 \
+                || {
+                    failure "Unable to create local branch '${BRANCH}'."
+                    return 1
+                }
+        fi
+
+        success "Using branch '${BRANCH}'."
+    fi
+
+    local local_commit
+    local remote_commit
+
+    local_commit="$(
+        git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || true
+    )"
+
+    remote_commit="$(
+        git -C "$REPO_DIR" rev-parse \
+            "origin/$BRANCH" 2>/dev/null || true
+    )"
+
+    if [[ -z "$local_commit" ||
+          -z "$remote_commit" ]]; then
+
+        failure "Unable to compare local and remote commits."
+        return 1
+    fi
+
+    if [[ "$local_commit" == "$remote_commit" ]]; then
+
+        success "Repository is already up to date."
+        return 0
+    fi
+
+    info "A repository update is available."
+    info "Applying update..."
+
+    if run_with_spinner \
+        "Updating repository" \
+        git -C "$REPO_DIR" pull \
+        --rebase \
+        --autostash \
+        origin \
+        "$BRANCH"; then
+
+        success "Repository updated successfully."
+        return 0
+    fi
+
+    echo
+    warning "Automatic repository update failed."
+    warning "This is usually caused by an unresolvable local Git conflict."
+
+    echo
+    echo -e "${DIM}Repository status:${RESET}"
+
+    git -C "$REPO_DIR" status --short 2>/dev/null || true
+
+    return 1
 }
 
-main() {
-    for arg in "$@"; do
-        case "$arg" in
-            --debug) DEBUG=1 ;;
-        esac
+
+venv_is_healthy() {
+
+    [[ -x "$VENV_DIR/bin/python" ]] || return 1
+
+    "$VENV_DIR/bin/python" --version >/dev/null 2>&1 || return 1
+
+    "$VENV_DIR/bin/python" -m pip --version \
+        >/dev/null 2>&1 || return 1
+
+    return 0
+}
+
+repair_venv_dependencies() {
+
+    if [[ "$PACKAGE_MANAGER" != "apt" ]]; then
+        return 1
+    fi
+
+    setup_privilege_command || return 1
+
+    info "Repairing Python virtual-environment support..."
+
+    run_with_spinner \
+        "Installing python3-venv" \
+        "${PRIVILEGE_CMD[@]}" apt-get install -y \
+        python3-venv \
+        || return 1
+
+    return 0
+}
+
+create_virtual_environment() {
+
+    if "$PYTHON_CMD" -m venv "$VENV_DIR" \
+        >/dev/null 2>&1; then
+
+        return 0
+    fi
+
+    warning "Virtual environment creation failed."
+
+    if repair_venv_dependencies; then
+
+        run_with_spinner \
+            "Recreating Python virtual environment" \
+            "$PYTHON_CMD" -m venv "$VENV_DIR" \
+            || return 1
+
+        return 0
+    fi
+
+    return 1
+}
+
+setup_virtual_environment() {
+
+    section "Python environment"
+
+    detect_python || {
+        failure "Python could not be detected."
+        return 1
+    }
+
+    info "Using Python: $PYTHON_CMD"
+
+    if [[ -d "$VENV_DIR" ]] &&
+       ! venv_is_healthy; then
+
+        warning "Existing virtual environment is unhealthy."
+        info "Removing corrupted virtual environment..."
+
+        rm -rf "$VENV_DIR" || {
+
+            failure "Unable to remove corrupted virtual environment."
+            return 1
+        }
+
+        success "Corrupted virtual environment removed."
+    fi
+
+    if ! venv_is_healthy; then
+
+        run_with_spinner \
+            "Creating Python virtual environment" \
+            create_virtual_environment \
+            || {
+
+                failure "Unable to create Python virtual environment."
+                return 1
+            }
+
+        success "Virtual environment created."
+    else
+
+        success "Virtual environment is healthy."
+    fi
+
+    VENV_PYTHON="$VENV_DIR/bin/python"
+
+    if ! "$VENV_PYTHON" -m pip --version \
+        >/dev/null 2>&1; then
+
+        warning "pip is missing from the virtual environment."
+
+        if [[ "$PACKAGE_MANAGER" == "apt" ]]; then
+
+            repair_venv_dependencies || {
+                failure "Unable to repair pip support."
+                return 1
+            }
+        fi
+
+        rm -rf "$VENV_DIR" || {
+            failure "Unable to rebuild the virtual environment."
+            return 1
+        }
+
+        run_with_spinner \
+            "Rebuilding Python virtual environment" \
+            create_virtual_environment \
+            || {
+
+                failure "Virtual environment rebuild failed."
+                return 1
+            }
+
+        VENV_PYTHON="$VENV_DIR/bin/python"
+    fi
+
+    if ! "$VENV_PYTHON" -m pip --version \
+        >/dev/null 2>&1; then
+
+        failure "pip is still unavailable."
+        return 1
+    fi
+
+    run_with_spinner \
+        "Upgrading pip, setuptools and wheel" \
+        "$VENV_PYTHON" -m pip install \
+        --upgrade \
+        pip \
+        setuptools \
+        wheel \
+        || return 1
+
+    success "Python environment is ready."
+
+    return 0
+}
+
+
+install_requirements() {
+
+    section "Python dependencies"
+
+    if [[ ! -f "requirements.txt" ]]; then
+
+        warning "requirements.txt was not found."
+        warning "Dependency installation was skipped."
+
+        return 0
+    fi
+
+    local attempt=1
+
+    while [[ "$attempt" -le "$MAX_RETRIES" ]]; do
+
+        if run_with_spinner \
+            "Installing requirements.txt (attempt ${attempt}/${MAX_RETRIES})" \
+            "$VENV_PYTHON" -m pip install \
+            --upgrade \
+            -r requirements.txt; then
+
+            success "requirements.txt installed successfully."
+            break
+        fi
+
+        if [[ "$attempt" -ge "$MAX_RETRIES" ]]; then
+
+            failure "Failed to install requirements.txt after ${MAX_RETRIES} attempts."
+            return 1
+        fi
+
+        warning "Dependency installation failed."
+        info "Retrying in 2 seconds..."
+
+        sleep 2
+
+        attempt=$((attempt + 1))
     done
 
-    echo ""
-    echo -e "  ${MAGENTA}╔═══════════════════════════════════════════╗${RESET}"
-    echo -e "  ${MAGENTA}║${RESET}              ${BOLD}${WHITE}MeduzaV3${RESET}                    ${MAGENTA}║${RESET}"
-    echo -e "  ${MAGENTA}║${RESET}           ${CYAN}Tools CC Checker${RESET}                ${MAGENTA}║${RESET}"
-    echo -e "  ${MAGENTA}║${RESET}        t.me/xqndrs │ t.me/xqndrs66       ${MAGENTA}║${RESET}"
-    echo -e "  ${MAGENTA}╚═══════════════════════════════════════════╝${RESET}"
-    echo ""
+    run_with_spinner \
+        "Checking installed Python dependencies" \
+        "$VENV_PYTHON" -m pip check \
+        || {
 
-    local os
-    os=$(detect_os)
-    echo -e "  ${CYAN}OS:${RESET}       $os ($(detect_arch))"
-    echo -e "  ${CYAN}Python:${RESET}   ${PYTHON_VERSION:-not found}"
-    echo -e "  ${CYAN}Venv:${RESET}     ${VENV_DIR}"
-    echo ""
+            warning "pip check detected dependency issues."
+            info "Attempting automatic dependency repair..."
 
-    if ! check_python; then
-        if ! install_python; then
-            e "Python installation failed"
-            exit 1
-        fi
-    fi
-    s "Python: ${PYTHON_VERSION}"
+            run_with_spinner \
+                "Reinstalling requirements.txt" \
+                "$VENV_PYTHON" -m pip install \
+                --upgrade \
+                --force-reinstall \
+                -r requirements.txt \
+                || {
 
-    if ! has_cmd git; then
-        install_git || w "Git installation skipped"
-    fi
+                    failure "Automatic dependency repair failed."
+                    return 1
+                }
 
-    if ! check_pip; then
-        if ! install_pip; then
-            e "pip installation failed"
-            exit 1
-        fi
-    fi
+            run_with_spinner \
+                "Running dependency verification again" \
+                "$VENV_PYTHON" -m pip check \
+                || {
 
-    if [[ ! -d "$VENV_DIR" ]]; then
-        setup_venv || exit 1
+                    failure "Dependency verification still fails."
+                    return 1
+                }
+        }
+
+    success "All Python dependencies are consistent."
+}
+
+
+final_validation() {
+
+    section "Final validation"
+
+    local failed=0
+
+    if command_exists git; then
+        success "Git"
     else
-        s "Venv exists: $VENV_DIR"
+        failure "Git"
+        failed=1
     fi
 
-    activate_venv || exit 1
-    install_packages
-    check_updates "$@"
-    check_files || exit 1
+    if detect_python; then
+        success "Python: $PYTHON_CMD"
+    else
+        failure "Python"
+        failed=1
+    fi
 
-    run_app "$@"
+    if [[ -x "$VENV_DIR/bin/python" ]]; then
+        success "Virtual environment"
+    else
+        failure "Virtual environment"
+        failed=1
+    fi
+
+    if [[ -x "$VENV_PYTHON" ]] &&
+       "$VENV_PYTHON" -m pip --version \
+       >/dev/null 2>&1; then
+
+        success "pip"
+    else
+        failure "pip"
+        failed=1
+    fi
+
+    if [[ -f "requirements.txt" ]]; then
+        success "requirements.txt"
+    else
+        warning "requirements.txt not found"
+    fi
+
+    if [[ "$failed" -ne 0 ]]; then
+        return 1
+    fi
+
+    return 0
+}
+
+
+show_summary() {
+
+    section "Installation complete"
+
+    echo -e "${GREEN}✓${RESET} Platform        : ${PLATFORM}"
+    echo -e "${GREEN}✓${RESET} Distribution    : ${DISTRO}"
+    echo -e "${GREEN}✓${RESET} Package manager : ${PACKAGE_MANAGER}"
+    echo -e "${GREEN}✓${RESET} Repository      : ${REPO_DIR}"
+    echo -e "${GREEN}✓${RESET} Branch          : ${BRANCH}"
+    echo -e "${GREEN}✓${RESET} Python          : ${PYTHON_CMD}"
+    echo -e "${GREEN}✓${RESET} Virtual env     : ${VENV_DIR}"
+    echo -e "${GREEN}✓${RESET} Dependencies    : installed"
+
+    echo
+    separator
+    echo
+    echo -e "${BOLD}${WHITE}Environment is ready.${RESET}"
+    echo
+    echo -e "${DIM}Activate the environment with:${RESET}"
+    echo
+    echo -e "  ${WHITE}cd ${REPO_DIR}${RESET}"
+    echo -e "  ${WHITE}source ${VENV_DIR}/bin/activate${RESET}"
+    echo
+    echo -e "${DIM}This installer does not start run.py.${RESET}"
+    echo
+}
+
+
+main() {
+
+    header
+
+    detect_platform
+    detect_package_manager
+
+    info "Platform        : ${PLATFORM}"
+    info "Distribution    : ${DISTRO}"
+    info "Package manager : ${PACKAGE_MANAGER}"
+
+    if [[ "$PLATFORM" == "unknown" ]]; then
+
+        failure "Unsupported operating system."
+        exit 1
+    fi
+
+    if [[ "$PACKAGE_MANAGER" == "unknown" ]]; then
+
+        failure "Unsupported or undetected package manager."
+        exit 1
+    fi
+
+    install_system_dependencies || {
+        failure "System dependency setup failed."
+        exit 1
+    }
+
+    setup_repository || {
+        failure "Repository setup failed."
+        exit 1
+    }
+
+    cd "$REPO_DIR" || {
+        failure "Unable to enter repository directory."
+        exit 1
+    }
+
+    setup_virtual_environment || {
+        failure "Python environment setup failed."
+        exit 1
+    }
+
+    install_requirements || {
+        failure "Python dependency setup failed."
+        exit 1
+    }
+
+    final_validation || {
+        failure "Final validation failed."
+        exit 1
+    }
+
+    show_summary
 }
 
 main "$@"
