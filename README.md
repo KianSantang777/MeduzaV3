@@ -33,7 +33,7 @@ $ git clone https://github.com/KianSantang777/MeduzaV3.git
 $ cd MeduzaV3
 $ chmod +x *
 $ pip install -r requirements.txt
-$ ./go.sh && python run.py
+$ python run.py
 </code></pre>
 
 
@@ -48,7 +48,7 @@ $ chmod +x *
 $ python3 -m venv venv
 $ source venv/bin/activate
 $ pip3 install -r requirements.txt
-$ ./go.sh && python3 run.py
+$ python3 run.py
 </code></pre>
 
 <hr>
