@@ -4,11 +4,11 @@ cookiejar
 bs4
 tqdm
 setuptools
+wheels
 python-socketio
 faker
 pyfiglet
 colorama
-cryptography
 requests_toolbelt
 cython
 urllib3
