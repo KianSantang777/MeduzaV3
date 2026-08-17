@@ -4,7 +4,6 @@ cookiejar
 bs4
 tqdm
 setuptools
-wheels
 python-socketio
 faker
 pyfiglet
