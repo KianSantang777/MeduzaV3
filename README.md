@@ -51,14 +51,16 @@ It focuses on browser-like session handling, request processing, and response cl
 ```bash
 termux-setup-storage
 pkg update -y && pkg upgrade -y
-pkg install git python python-pip python-venv -y
+pkg install git
+pkg install python
+pkg install python-pip
+pkg install nano
+pip install requests requests_toolbelt tqdm colorama faker pyfiglet cookiejar bs4 python-socketio
 git clone https://github.com/KianSantang777/MeduzaV3.git
 cd MeduzaV3
 chmod +x go.sh
 ./go.sh
 pip install -r requirements.txt
-pip install requests requests_toolbelt tqdm colorama faker pyfiglet cookiejar bs4 python-socketio
-pip install --upgrade pip
 python run.py
 ```
 
