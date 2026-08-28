@@ -61,7 +61,7 @@ cd MeduzaV3
 chmod +x go.sh
 ./go.sh
 pip install -r requirements.txt
-python run.py
+python card_run.py
 ```
 
 ### Linux — Ubuntu / Debian
@@ -75,7 +75,7 @@ chmod +x *
 python3 -m venv venv
 source venv/bin/activate
 python3 -m pip install -r requirements.txt
-python3 run.py
+python3 card_run.py
 ```
 
 ---
