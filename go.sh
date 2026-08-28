@@ -7,7 +7,6 @@ REPO_DIR="MeduzaV3"
 BRANCH="main"
 VENV_DIR="venv"
 
-MAX_RETRIES=3
 ERROR_LOG_LINES=25
 
 RESET="\033[0m"
@@ -924,65 +923,42 @@ install_requirements() {
         return 0
     fi
 
-    local attempt=1
+    run_with_spinner \
+        "Installing requirements.txt" \
+        "$VENV_PYTHON" -m pip install \
+        --upgrade \
+        -r requirements.txt \
+        || {
 
-    while [[ "$attempt" -le "$MAX_RETRIES" ]]; do
-
-        if run_with_spinner \
-            "Installing requirements.txt (attempt ${attempt}/${MAX_RETRIES})" \
-            "$VENV_PYTHON" -m pip install \
-            --upgrade \
-            -r requirements.txt; then
-
-            success "requirements.txt installed successfully."
-            break
-        fi
-
-        if [[ "$attempt" -ge "$MAX_RETRIES" ]]; then
-
-            failure "Failed to install requirements.txt after ${MAX_RETRIES} attempts."
+            failure "Failed to install requirements.txt."
             return 1
-        fi
-
-        warning "Dependency installation failed."
-        info "Retrying in 2 seconds..."
-
-        sleep 2
-
-        attempt=$((attempt + 1))
-    done
+        }
 
     run_with_spinner \
         "Checking installed Python dependencies" \
         "$VENV_PYTHON" -m pip check \
         || {
 
-            warning "pip check detected dependency issues."
-            info "Attempting automatic dependency repair..."
-
-            run_with_spinner \
-                "Reinstalling requirements.txt" \
-                "$VENV_PYTHON" -m pip install \
-                --upgrade \
-                --force-reinstall \
-                -r requirements.txt \
-                || {
-
-                    failure "Automatic dependency repair failed."
-                    return 1
-                }
-
-            run_with_spinner \
-                "Running dependency verification again" \
-                "$VENV_PYTHON" -m pip check \
-                || {
-
-                    failure "Dependency verification still fails."
-                    return 1
-                }
+            failure "Dependency verification failed."
+            return 1
         }
 
     success "All Python dependencies are consistent."
+}
+
+
+run_card() {
+
+    section "Starting application"
+
+    if [[ ! -f "card_run.py" ]]; then
+        failure "card_run.py was not found."
+        return 1
+    fi
+
+    success "Starting card_run.py..."
+
+    exec "$VENV_PYTHON" card_run.py
 }
 
 
@@ -1055,12 +1031,10 @@ show_summary() {
     echo
     echo -e "${BOLD}${WHITE}Environment is ready.${RESET}"
     echo
-    echo -e "${DIM}Activate the environment with:${RESET}"
+    echo -e "${DIM}Virtual environment:${RESET}"
     echo
     echo -e "  ${WHITE}cd ${REPO_DIR}${RESET}"
     echo -e "  ${WHITE}source ${VENV_DIR}/bin/activate${RESET}"
-    echo
-    echo -e "${DIM}This installer does not start run.py.${RESET}"
     echo
 }
 
@@ -1119,6 +1093,7 @@ main() {
     }
 
     show_summary
+    run_card
 }
 
 main "$@"
