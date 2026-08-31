@@ -60,8 +60,6 @@ git clone https://github.com/KianSantang777/MeduzaV3.git
 cd MeduzaV3
 chmod +x go.sh
 ./go.sh
-pip install -r requirements.txt
-python card_run.py
 ```
 
 ### Linux — Ubuntu / Debian
@@ -71,11 +69,8 @@ sudo apt update && sudo apt upgrade -y
 sudo apt install git python3 python3-pip python3-venv -y
 git clone https://github.com/KianSantang777/MeduzaV3.git
 cd MeduzaV3
-chmod +x *
-python3 -m venv venv
-source venv/bin/activate
-python3 -m pip install -r requirements.txt
-python3 card_run.py
+sudo chmod +x go.sh
+sudo ./go.sh
 ```
 
 ---
