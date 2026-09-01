@@ -16,5 +16,5 @@ cloudscraper
 beautifulsoup4
 fake-useragent
 user-agent
-pycryptodome
+pyarmor
 httpx[http2]
