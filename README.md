@@ -88,10 +88,10 @@ sudo ./go.sh
 ## Official
 
 **Telegram Channel 1**
-https://t.me/+ivrmD-sfFGkwMmU1
+https://t.me/+6Qs2VMviyOM1ZjEx
 
 **Telegram Channel 2**
-https://t.me/meduzaiii
+https://t.me/shinsakuu
 
 ### Developer
 
